@@ -1,2 +1,8 @@
-package ru.mephi.db.core.entity.table;public class ColumnType {
+package ru.mephi.db.core.entity.table;
+
+public enum ColumnType {
+
+    INTEGER,
+    TEXT
+
 }
