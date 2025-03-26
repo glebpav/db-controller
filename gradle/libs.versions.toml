@@ -1,0 +1,11 @@
+[versions]
+lombok = "1.18.30"
+dagger = "2.55"
+junit = "4.13.2"
+
+[libraries]
+lombok = { group = "org.projectlombok", name = "lombok", version.ref = "lombok" }
+dagger = { group = "com.google.dagger", name = "dagger", version.ref = "dagger" }
+dagger-compiler = { group = "com.google.dagger", name = "dagger-compiler", version.ref = "dagger" }
+
+junit = { group = "junit", name = "junit", version.ref = "junit" }
