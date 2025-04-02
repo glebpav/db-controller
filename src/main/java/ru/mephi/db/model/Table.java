@@ -1,4 +1,4 @@
-package ru.mephi.db.core.entity.table;
+package ru.mephi.db.model;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -10,8 +10,6 @@ import java.util.Set;
 @AllArgsConstructor
 @Builder
 public class Table {
-
     private String tableName;
     private Set<Column> columns;
-
 }

@@ -1,6 +1,6 @@
-package ru.mephi.db.adapter.repository;
+package ru.mephi.db.repository;
 
-import ru.mephi.db.core.entity.table.Table;
+import ru.mephi.db.model.Table;
 
 public interface DatabaseRepository {
 

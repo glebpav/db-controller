@@ -1,10 +1,9 @@
-package ru.mephi.db.adapter.repository;
+package ru.mephi.db.repository;
 
-import ru.mephi.db.core.entity.table.Column;
-import ru.mephi.db.core.entity.table.Table;
+import ru.mephi.db.model.Column;
+import ru.mephi.db.model.Table;
 
 import java.io.*;
-import java.util.Map;
 
 public class FileDatabaseRepository implements DatabaseRepository {
     private static final String DATABASE_PATH = "path/to/database/";
