@@ -29,4 +29,19 @@ dependencies {
     implementation(libs.jansi)
 
     testImplementation(libs.junit)
+
+    testImplementation(libs.mockito.core)
+    testImplementation(libs.mockito.junit)
+
+    testImplementation(libs.assertJ.core)
+}
+
+tasks.test {
+    useJUnit()
+    filter {
+        includeTestsMatching("*Test")
+    }
+    testLogging {
+        events("passed", "skipped", "failed")
+    }
 }
