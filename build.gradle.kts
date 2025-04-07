@@ -1,7 +1,6 @@
 plugins {
     java
     application
-    kotlin("jvm")
 }
 
 repositories {
@@ -25,9 +24,7 @@ dependencies {
     implementation(libs.dagger)
     annotationProcessor(libs.dagger.compiler)
 
+    implementation(libs.jetbrains.annotations)
+
     testImplementation(libs.junit)
-    implementation(kotlin("stdlib-jdk8"))
-}
-kotlin {
-    jvmToolchain(21)
 }
