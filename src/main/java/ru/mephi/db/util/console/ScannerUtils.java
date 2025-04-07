@@ -1,4 +1,4 @@
-package ru.mephi.db.util;
+package ru.mephi.db.util.console;
 
 import java.util.Scanner;
 

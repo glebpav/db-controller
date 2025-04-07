@@ -4,7 +4,7 @@ import ru.mephi.db.exception.DatabaseException;
 import ru.mephi.db.exception.DatabaseInitException;
 import ru.mephi.db.exception.DatabaseQuitException;
 import ru.mephi.db.util.Constants;
-import ru.mephi.db.util.ScannerUtils;
+import ru.mephi.db.util.console.ScannerUtils;
 
 import javax.inject.Inject;
 import java.io.IOException;
