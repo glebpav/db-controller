@@ -3,11 +3,13 @@ lombok = "1.18.30"
 dagger = "2.55"
 junit = "4.13.2"
 jetbrains-annotations = "26.0.2"
+jansi = "2.4.1"
 
 [libraries]
 # Common
 dagger = { group = "com.google.dagger", name = "dagger", version.ref = "dagger" }
 dagger-compiler = { group = "com.google.dagger", name = "dagger-compiler", version.ref = "dagger" }
+jansi = { group = "org.fusesource.jansi", name = "jansi", version.ref = "jansi" }
 
 # Annotations
 lombok = { group = "org.projectlombok", name = "lombok", version.ref = "lombok" }

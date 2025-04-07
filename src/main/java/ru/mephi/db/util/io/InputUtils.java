@@ -1,8 +1,8 @@
-package ru.mephi.db.util.console;
+package ru.mephi.db.util.io;
 
 import java.util.Scanner;
 
-public class ScannerUtils {
+public class InputUtils {
 
     public static boolean promptYesNo(Scanner scanner, String prompt, boolean defaultNo) {
         System.out.print(prompt);

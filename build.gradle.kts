@@ -26,5 +26,7 @@ dependencies {
 
     implementation(libs.jetbrains.annotations)
 
+    implementation(libs.jansi)
+
     testImplementation(libs.junit)
 }
