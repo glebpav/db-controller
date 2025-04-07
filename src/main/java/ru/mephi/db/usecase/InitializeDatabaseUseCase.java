@@ -4,7 +4,7 @@ import ru.mephi.db.exception.DatabaseException;
 import ru.mephi.db.exception.DatabaseInitException;
 import ru.mephi.db.exception.DatabaseQuitException;
 import ru.mephi.db.util.Constants;
-import ru.mephi.db.util.console.ScannerUtils;
+import ru.mephi.db.util.io.InputUtils;
 
 import javax.inject.Inject;
 import java.io.IOException;
@@ -32,7 +32,7 @@ public class InitializeDatabaseUseCase {
 
     public FileLock execute(Path dbPath) throws DatabaseException {
         if (!Files.exists(dbPath)) {
-            boolean create = ScannerUtils.promptYesNo(
+            boolean create = InputUtils.promptYesNo(
                     scanner,
                     "Database directory does not exist!\nDo you want to create a new database (y/N): ",
                     true
