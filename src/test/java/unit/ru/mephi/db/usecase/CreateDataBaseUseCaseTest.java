@@ -1,5 +1,6 @@
 package unit.ru.mephi.db.usecase;
 
+import org.junit.Assume;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -39,6 +40,9 @@ public class CreateDataBaseUseCaseTest {
 
     @Test(expected = DatabaseCreateException.class)
     public void shouldThrowExceptionWhenDirectoryCreationFails() throws Exception {
+        // Skip test on Windows
+        Assume.assumeFalse("Test skipped on Windows", System.getProperty("os.name").toLowerCase().contains("win"));
+
         // Arrange
         Path invalidPath = Path.of("/invalid/path");
         CreateDatabaseUseCase useCase = new CreateDatabaseUseCase();
