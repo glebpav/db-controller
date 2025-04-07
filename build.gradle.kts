@@ -27,7 +27,24 @@ dependencies {
 
     testImplementation(libs.junit)
     implementation(kotlin("stdlib-jdk8"))
+
+    testImplementation(libs.mockito.core)
+    testImplementation(libs.mockito.junit)
+
+    testImplementation(libs.assertJ.core)
 }
+
+tasks.test {
+    useJUnit()
+    filter {
+        includeTestsMatching("*Test")
+    }
+    testLogging {
+        events("passed", "skipped", "failed")
+    }
+}
+
+
 kotlin {
     jvmToolchain(21)
 }

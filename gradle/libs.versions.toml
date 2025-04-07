@@ -2,6 +2,8 @@
 lombok = "1.18.30"
 dagger = "2.55"
 junit = "4.13.2"
+mockito = "5.17.0"
+assertJ = "3.27.3"
 
 [libraries]
 lombok = { group = "org.projectlombok", name = "lombok", version.ref = "lombok" }
@@ -9,3 +11,6 @@ dagger = { group = "com.google.dagger", name = "dagger", version.ref = "dagger" 
 dagger-compiler = { group = "com.google.dagger", name = "dagger-compiler", version.ref = "dagger" }
 
 junit = { group = "junit", name = "junit", version.ref = "junit" }
+mockito-core = { group = "org.mockito", name = "mockito-core", version.ref = "mockito" }
+mockito-junit = { group = "org.mockito", name = "mockito-junit-jupiter", version.ref = "mockito" }
+assertJ-core = { group = "org.assertj", name = "assertj-core", version.ref = "assertJ" }
