@@ -1,6 +1,7 @@
 package ru.mephi.db.util.io;
 
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.Setter;
 import org.fusesource.jansi.Ansi;
 import org.fusesource.jansi.AnsiConsole;
@@ -11,7 +12,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 @SuppressWarnings("unused")
-public class OutputUtils {
+public class OutputUtils implements AutoCloseable {
 
     @Getter
     public enum LogLevel {
@@ -21,7 +22,6 @@ public class OutputUtils {
         INFO(Ansi.Color.CYAN, "INFO"),
         DEBUG(Ansi.Color.MAGENTA, "DEBUG"),
         VERBOSE(Ansi.Color.BLUE, "VERBOSE");
-
 
         private final Ansi.Color color;
         private final String tag;
@@ -45,16 +45,24 @@ public class OutputUtils {
         }
     }
 
-    private static boolean showTimestamp = false;
-    private static boolean ansiEnabled;
+    private boolean showTimestamp = false;
+    private boolean ansiEnabled;
     @Setter
-    static LogLevel minimumLogLevel = LogLevel.INFO;
+    LogLevel minimumLogLevel = LogLevel.INFO;
 
-    @Setter
-    private static PrintStream out = System.out;
-    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
+    private final PrintStream out;
+    private final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 
-    static {
+    public OutputUtils(@NonNull PrintStream out) {
+        this.out = out;
+        initAnsi();
+    }
+
+    public OutputUtils() {
+        this(System.out);
+    }
+
+    private void initAnsi() {
         try {
             AnsiConsole.systemInstall();
             AnsiConsole.out().print(Ansi.ansi());
@@ -65,15 +73,15 @@ public class OutputUtils {
         }
     }
 
-    public static void showTimestamps(boolean show) {
+    public void showTimestamps(boolean show) {
         showTimestamp = show;
     }
 
-    public static void enableAnsiColors(boolean enable) {
+    public void enableAnsiColors(boolean enable) {
         ansiEnabled = enable;
     }
 
-    private static void print(String message, LogLevel level) {
+    private void print(String message, LogLevel level) {
         if (level.ordinal() > minimumLogLevel.ordinal()) {
             return;
         }
@@ -94,40 +102,40 @@ public class OutputUtils {
         }
     }
 
-    public static void success(String message) {
+    public void success(String message) {
         print(message, LogLevel.SUCCESS);
     }
 
-    public static void error(String message) {
+    public void error(String message) {
         print(message, LogLevel.ERROR);
     }
 
-    public static void error(String message, Throwable throwable) {
+    public void error(String message, Throwable throwable) {
         error(message);
         throwable.printStackTrace(out);
     }
 
-    public static void warning(String message) {
+    public void warning(String message) {
         print(message, LogLevel.WARN);
     }
 
-    public static void info(String message) {
+    public void info(String message) {
         print(message, LogLevel.INFO);
     }
 
-    public static void debug(String message) {
+    public void debug(String message) {
         print(message, LogLevel.DEBUG);
     }
 
-    public static void verbose(String message) {
+    public void verbose(String message) {
         print(message, LogLevel.VERBOSE);
     }
 
-    public static void success(String format, Object... args) {
+    public void success(String format, Object... args) {
         success(String.format(format, args));
     }
 
-    public static void error(String format, Object... args) {
+    public void error(String format, Object... args) {
         if (args.length > 0 && args[args.length - 1] instanceof Throwable throwable) {
             Object[] messageArgs = new Object[args.length - 1];
             System.arraycopy(args, 0, messageArgs, 0, args.length - 1);
@@ -137,41 +145,49 @@ public class OutputUtils {
         }
     }
 
-    public static void warning(String format, Object... args) {
+    public void warning(String format, Object... args) {
         warning(String.format(format, args));
     }
 
-    public static void info(String format, Object... args) {
+    public void info(String format, Object... args) {
         info(String.format(format, args));
     }
 
-    public static void debug(String format, Object... args) {
+    public void debug(String format, Object... args) {
         debug(String.format(format, args));
     }
 
-    public static void verbose(String format, Object... args) {
+    public void verbose(String format, Object... args) {
         verbose(String.format(format, args));
     }
 
+    @Override
+    public void close() throws Exception {
+        out.close();
+    }
+
     public static void main(String[] args) {
-        enableAnsiColors(true);
-        info("ANSI colors enabled test");
-        enableAnsiColors(false);
-        info("ANSI colors disabled test");
-        enableAnsiColors(true);
 
-        showTimestamps(true);
-        setMinimumLogLevel(LogLevel.VERBOSE);
+        OutputUtils out = new OutputUtils(System.out);
 
-        info("Application started");
-        warning("Low memory: %dMB remaining", 512);
-        error("File not found: %s", "data.txt", new FileNotFoundException());
-        success("Operation completed successfully");
-        debug("Debug message");
-        verbose("Verbose diagnostic information");
+        out.enableAnsiColors(true);
+        out.info("ANSI colors enabled test");
+        out.enableAnsiColors(false);
+        out.info("ANSI colors disabled test");
+        out.enableAnsiColors(true);
 
-        setMinimumLogLevel(LogLevel.WARN);
-        verbose("This verbose message won't appear");
-        warning("This warning will appear");
+        out.showTimestamps(true);
+        out.setMinimumLogLevel(LogLevel.VERBOSE);
+
+        out.info("Application started");
+        out.warning("Low memory: %dMB remaining", 512);
+        out.error("File not found: %s", "data.txt", new FileNotFoundException());
+        out.success("Operation completed successfully");
+        out.debug("Debug message");
+        out.verbose("Verbose diagnostic information");
+
+        out.setMinimumLogLevel(LogLevel.WARN);
+        out.verbose("This verbose message won't appear");
+        out.warning("This warning will appear");
     }
 }

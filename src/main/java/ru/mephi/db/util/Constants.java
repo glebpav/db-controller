@@ -5,4 +5,6 @@ public class Constants {
 
     public static final String DB_INFO_FILE = "info";
     public static final String DB_LOCK_FILE = ".lock";
+
+    public static final String TEST_PRINT_STREAM_FILE = "testPrintStreamFile.txt";
 }
