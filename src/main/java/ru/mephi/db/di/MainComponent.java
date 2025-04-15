@@ -8,7 +8,7 @@ import ru.mephi.db.usecase.InitializeDatabaseUseCase;
 import javax.inject.Singleton;
 
 @Singleton
-@Component(modules = { AppModule.class, UseCaseModule.class })
+@Component(modules = { AppModule.class, UseCaseModule.class, CommandModule.class })
 public interface MainComponent {
     InitializeDatabaseUseCase getInitializeDatabaseUseCase();
 

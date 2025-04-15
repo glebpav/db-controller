@@ -9,7 +9,9 @@ import ru.mephi.db.model.command.UserInputCommandType;
 import ru.mephi.db.model.query.Query;
 import ru.mephi.db.model.query.QueryResult;
 
-@AllArgsConstructor
+import javax.inject.Inject;
+
+@AllArgsConstructor(onConstructor_ = @Inject)
 public class SQLQueryCommand implements Command {
     SQLParser sqlParser;
     QueryExecutor queryExecutor;
@@ -22,9 +24,9 @@ public class SQLQueryCommand implements Command {
     @Override
     public void execute(String commandText) throws DatabaseException {
         Query query = sqlParser.parse(commandText);
+        // TODO: coming soon
         QueryResult result = queryExecutor.execute(query);
 
-        // TODO: coming soon
         /* if (result.requiresStorage()) {
             fileStorageService.save(result);
         }

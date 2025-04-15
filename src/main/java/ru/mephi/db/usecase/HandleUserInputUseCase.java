@@ -1,19 +1,11 @@
 package ru.mephi.db.usecase;
 
 import lombok.AllArgsConstructor;
-import ru.mephi.db.exception.DatabaseException;
-import ru.mephi.db.exception.DatabaseExitException;
-import ru.mephi.db.exception.QueryExecutionException;
-import ru.mephi.db.exception.SQLParseException;
+import ru.mephi.db.exception.*;
 import ru.mephi.db.model.command.UserInputCommand;
-import ru.mephi.db.model.command.UserInputCommandType;
-import ru.mephi.db.model.query.Query;
-import ru.mephi.db.model.query.QueryResult;
-import ru.mephi.db.util.command.Command;
 import ru.mephi.db.util.command.CommandDispatcher;
 import ru.mephi.db.util.command.CommandParser;
 
-import java.util.List;
 import java.util.Scanner;
 
 @AllArgsConstructor
@@ -32,7 +24,7 @@ public class HandleUserInputUseCase {
 
             commandDispatcher.handle(userInputCommand);
 
-        } catch (DatabaseExitException e) {
+        } catch (DatabaseQuitException e) {
             throw e;
         } catch (DatabaseException e) {
             // TODO: implement

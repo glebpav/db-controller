@@ -5,7 +5,9 @@ import ru.mephi.db.exception.DatabaseException;
 import ru.mephi.db.model.command.UserInputCommandType;
 import ru.mephi.db.util.io.OutputUtils;
 
-@AllArgsConstructor
+import javax.inject.Inject;
+
+@AllArgsConstructor(onConstructor_ = @Inject)
 public class EmptyCommand implements Command{
     OutputUtils outputUtils;
 

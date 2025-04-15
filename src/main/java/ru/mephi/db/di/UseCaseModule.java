@@ -6,6 +6,7 @@ import ru.mephi.db.usecase.CreateDatabaseUseCase;
 import ru.mephi.db.usecase.ExitDatabaseUseCase;
 import ru.mephi.db.usecase.HandleUserInputUseCase;
 import ru.mephi.db.usecase.InitializeDatabaseUseCase;
+import ru.mephi.db.util.command.CommandDispatcher;
 
 import javax.inject.Singleton;
 import java.util.Scanner;
@@ -30,8 +31,11 @@ public class UseCaseModule {
 
     @Provides
     @Singleton
-    public HandleUserInputUseCase providesHandleUserInputUseCase(Scanner scanner) {
-        return new HandleUserInputUseCase(scanner);
+    public HandleUserInputUseCase providesHandleUserInputUseCase(
+            Scanner scanner,
+            CommandDispatcher commandDispatcher
+    ) {
+        return new HandleUserInputUseCase(scanner, commandDispatcher);
     }
 
     @Provides

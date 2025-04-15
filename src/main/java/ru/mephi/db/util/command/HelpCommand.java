@@ -7,7 +7,9 @@ import ru.mephi.db.model.command.UserInputCommandType;
 import ru.mephi.db.util.Constants;
 import ru.mephi.db.util.io.OutputUtils;
 
-@AllArgsConstructor
+import javax.inject.Inject;
+
+@AllArgsConstructor(onConstructor_ = @Inject)
 public class HelpCommand implements Command{
     OutputUtils output;
 
