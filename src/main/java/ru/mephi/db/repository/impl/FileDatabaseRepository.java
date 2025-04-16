@@ -1,7 +1,8 @@
-package ru.mephi.db.repository;
+package ru.mephi.db.repository.impl;
 
 import ru.mephi.db.model.Column;
 import ru.mephi.db.model.Table;
+import ru.mephi.db.repository.DatabaseRepository;
 
 import java.io.*;
 
