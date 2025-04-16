@@ -36,6 +36,7 @@ public class CreateDataBaseUseCaseTest {
                 .readAllLines(testPath.resolve(Constants.DB_INFO_FILE)).get(0)
                 .startsWith(Constants.MAGIC_HEADER)
         );
+        assertTrue(Files.exists(testPath.resolve(Constants.DB_LOG_FILE)));
     }
 
     @Test(expected = DatabaseCreateException.class)
