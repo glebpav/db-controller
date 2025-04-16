@@ -48,8 +48,13 @@ public class InitializeDatabaseUseCase {
             throw new DatabaseInitException("Provided path is not a directory");
 
         Path dbInfoFile = dbPath.resolve(Constants.DB_INFO_FILE);
+        Path dbLogFile = dbPath.resolve(Constants.DB_LOG_FILE);
+
         if (!Files.exists(dbInfoFile))
             throw new DatabaseInitException("Database metadata file missing");
+
+        if (!Files.exists(dbLogFile))
+            throw new DatabaseInitException("Database log file missing");
 
         try {
             Path lockFile = dbPath.resolve(Constants.DB_LOCK_FILE);

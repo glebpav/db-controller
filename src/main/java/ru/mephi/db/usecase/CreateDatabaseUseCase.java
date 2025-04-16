@@ -22,6 +22,7 @@ public class CreateDatabaseUseCase {
             Files.createDirectories(dbPath);
 
             Path dbInfoFile = dbPath.resolve(Constants.DB_INFO_FILE);
+            Path dbLogFile = dbPath.resolve(Constants.DB_LOG_FILE);
             Properties props = new Properties();
             props.setProperty("version", "1.0.0"); // TODO: Get from build
             props.setProperty("createdAt", String.valueOf(System.currentTimeMillis()));
@@ -30,11 +31,15 @@ public class CreateDatabaseUseCase {
                 writer.write(Constants.MAGIC_HEADER);
                 writer.newLine();
 
-                // Use this instead of `store` method, to prevent calling `writeDateComment`
                 for (Map.Entry<Object, Object> entry : props.entrySet()) {
                     writer.write(entry.getKey() + "=" + entry.getValue());
                     writer.newLine();
                 }
+            }
+
+            try (BufferedWriter logWriter = Files.newBufferedWriter(dbLogFile, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND)) {
+                logWriter.write("Database log initialized at: " + props.getProperty("createdAt"));
+                logWriter.newLine();
             }
 
             System.out.println("Database created successfully at: " + dbPath);
