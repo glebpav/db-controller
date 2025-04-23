@@ -4,7 +4,13 @@ import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
 import dagger.multibindings.IntoSet;
-import ru.mephi.db.util.command.*;
+import ru.mephi.db.application.core.command.*;
+import ru.mephi.db.application.core.command.impl.*;
+import ru.mephi.db.application.core.command.impl.handler.EmptyCommandHandler;
+import ru.mephi.db.application.core.command.impl.handler.ExitCommandHandler;
+import ru.mephi.db.application.core.command.impl.handler.HelpCommandHandler;
+import ru.mephi.db.application.core.command.impl.handler.SQLQueryCommandHandler;
+import ru.mephi.db.bin.util.command.*;
 
 import javax.inject.Singleton;
 import java.util.ArrayList;
@@ -15,23 +21,24 @@ public abstract class CommandModule {
 
     @Binds
     @IntoSet
-    abstract Command bindSqlCommand(SQLQueryCommand cmd);
-
-    @Binds @IntoSet
-    abstract Command bindHelpCommand(HelpCommand cmd);
+    abstract CommandHandler bindSqlCommand(SQLQueryCommandHandler cmd);
 
     @Binds
     @IntoSet
-    abstract Command bindExitCommand(ExitCommand cmd);
+    abstract CommandHandler bindHelpCommand(HelpCommandHandler cmd);
 
     @Binds
     @IntoSet
-    abstract Command bindEmptyCommand(EmptyCommand cmd);
+    abstract CommandHandler bindExitCommand(ExitCommandHandler cmd);
+
+    @Binds
+    @IntoSet
+    abstract CommandHandler bindEmptyCommand(EmptyCommandHandler cmd);
 
     @Provides
     @Singleton
-    static CommandDispatcher provideCommandDispatcher(Set<Command> commands) {
-        return new CommandDispatcher(new ArrayList<>(commands));
+    static CommandDispatcherImpl provideCommandDispatcher(Set<CommandHandler> commandHandlers) {
+        return new CommandDispatcherImpl(new ArrayList<>(commandHandlers));
     }
 
 }

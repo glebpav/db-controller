@@ -2,17 +2,16 @@ package ru.mephi.db.di;
 
 import dagger.Module;
 import dagger.Provides;
-import ru.mephi.db.core.executor.QueryExecutor;
-import ru.mephi.db.core.executor.QueryExecutorImpl;
-import ru.mephi.db.core.handler.DeleteQueryHandler;
-import ru.mephi.db.core.handler.InsertQueryHandler;
-import ru.mephi.db.core.handler.SelectQueryHandler;
-import ru.mephi.db.core.parser.SQLParser;
-import ru.mephi.db.core.parser.SQLParserImpl;
+import ru.mephi.db.infrastructure.Constants;
+import ru.mephi.db.application.core.sql.QueryExecutor;
+import ru.mephi.db.application.core.sql.Impl.QueryExecutorImpl;
+import ru.mephi.db.application.core.sql.Impl.handler.DeleteQueryHandler;
+import ru.mephi.db.application.core.sql.Impl.handler.InsertQueryHandler;
+import ru.mephi.db.application.core.sql.Impl.handler.SelectQueryHandler;
+import ru.mephi.db.application.core.sql.SQLParser;
+import ru.mephi.db.application.core.sql.Impl.SQLParserImpl;
 import ru.mephi.db.di.qulifier.CustomOutput;
-import ru.mephi.db.util.Constants;
-import ru.mephi.db.util.command.*;
-import ru.mephi.db.util.io.OutputUtils;
+import ru.mephi.db.bin.util.io.OutputUtils;
 
 import javax.inject.Singleton;
 import java.io.FileNotFoundException;

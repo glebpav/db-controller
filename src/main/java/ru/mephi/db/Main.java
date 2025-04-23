@@ -5,7 +5,7 @@ import ru.mephi.db.di.MainComponent;
 import ru.mephi.db.exception.DatabaseException;
 import ru.mephi.db.exception.DatabaseInitException;
 import ru.mephi.db.exception.DatabaseQuitException;
-import ru.mephi.db.usecase.HandleUserInputUseCase;
+import ru.mephi.db.application.usecase.HandleUserInputUseCase;
 
 import java.io.File;
 import java.nio.channels.FileLock;

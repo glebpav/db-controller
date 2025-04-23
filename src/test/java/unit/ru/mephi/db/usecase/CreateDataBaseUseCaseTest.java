@@ -5,8 +5,8 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import ru.mephi.db.exception.DatabaseCreateException;
-import ru.mephi.db.usecase.CreateDatabaseUseCase;
-import ru.mephi.db.util.Constants;
+import ru.mephi.db.application.usecase.CreateDatabaseUseCase;
+import ru.mephi.db.infrastructure.Constants;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
