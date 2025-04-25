@@ -1,10 +1,13 @@
 package ru.mephi.db.application.usecase;
 
+import lombok.AllArgsConstructor;
+import ru.mephi.db.application.adapter.io.IOUtils;
+import ru.mephi.db.application.adapter.io.InputBoundary;
+import ru.mephi.db.application.adapter.io.OutputBoundary;
 import ru.mephi.db.exception.DatabaseException;
 import ru.mephi.db.exception.DatabaseInitException;
 import ru.mephi.db.exception.DatabaseQuitException;
 import ru.mephi.db.infrastructure.Constants;
-import ru.mephi.db.bin.util.io.InputUtils;
 
 import javax.inject.Inject;
 import java.io.IOException;
@@ -13,27 +16,20 @@ import java.nio.channels.FileLock;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.Scanner;
 
+@AllArgsConstructor(onConstructor_ = @Inject)
 public class InitializeDatabaseUseCase {
 
-    private final Scanner scanner;
-
+    private final InputBoundary input;
+    private final OutputBoundary output;
     private final CreateDatabaseUseCase createDatabaseUseCase;
 
-    @Inject
-    public InitializeDatabaseUseCase(
-            Scanner scanner,
-            CreateDatabaseUseCase createDatabaseUseCase
-    ) {
-        this.scanner = scanner;
-        this.createDatabaseUseCase = createDatabaseUseCase;
-    }
 
     public FileLock execute(Path dbPath) throws DatabaseException {
         if (!Files.exists(dbPath)) {
-            boolean create = InputUtils.promptYesNo(
-                    scanner,
+            boolean create = IOUtils.promptYesNo(
+                    input,
+                    output,
                     "Database directory does not exist!\nDo you want to create a new database (y/N): ",
                     true
             );

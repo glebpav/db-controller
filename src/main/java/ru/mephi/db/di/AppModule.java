@@ -10,8 +10,6 @@ import ru.mephi.db.application.core.sql.Impl.handler.InsertQueryHandler;
 import ru.mephi.db.application.core.sql.Impl.handler.SelectQueryHandler;
 import ru.mephi.db.application.core.sql.SQLParser;
 import ru.mephi.db.application.core.sql.Impl.SQLParserImpl;
-import ru.mephi.db.di.qulifier.CustomOutput;
-import ru.mephi.db.bin.util.io.OutputUtils;
 
 import javax.inject.Singleton;
 import java.io.FileNotFoundException;
@@ -37,32 +35,4 @@ public class AppModule {
         }
     }
 
-    @Provides
-    @Singleton
-    public OutputUtils provideDefaultOutputUtils() {
-        return new OutputUtils();
-    }
-
-    @Provides
-    @Singleton
-    @CustomOutput
-    public OutputUtils provideCustomOutputUtils(PrintStream printStream) {
-        return new OutputUtils(printStream);
-    }
-
-    @Provides
-    @Singleton
-    public SQLParser provideSQLParser() {
-        return new SQLParserImpl();
-    }
-
-    @Provides
-    @Singleton
-    public QueryExecutor provideQueryExecutor() {
-        return new QueryExecutorImpl(List.of(
-                new SelectQueryHandler(),
-                new InsertQueryHandler(),
-                new DeleteQueryHandler()
-        ));
-    }
 }

@@ -14,33 +14,4 @@ import java.util.Scanner;
 @Module
 public class UseCaseModule {
 
-    @Provides
-    @Singleton
-    public InitializeDatabaseUseCase providesInitializeDatabaseUseCase(
-            Scanner scanner,
-            CreateDatabaseUseCase createDatabaseUseCase
-    ) {
-        return new InitializeDatabaseUseCase(scanner, createDatabaseUseCase);
-    }
-
-    @Provides
-    @Singleton
-    public CreateDatabaseUseCase providesCreateDatabaseUseCase() {
-        return new CreateDatabaseUseCase();
-    }
-
-    @Provides
-    @Singleton
-    public HandleUserInputUseCase providesHandleUserInputUseCase(
-            Scanner scanner,
-            CommandDispatcherImpl commandDispatcher
-    ) {
-        return new HandleUserInputUseCase(scanner, commandDispatcher);
-    }
-
-    @Provides
-    @Singleton
-    public ExitDatabaseUseCase providesExitDatabaseUseCase() {
-        return new ExitDatabaseUseCase();
-    }
 }

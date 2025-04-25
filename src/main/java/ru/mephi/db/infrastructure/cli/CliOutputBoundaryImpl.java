@@ -1,10 +1,9 @@
-package ru.mephi.db.infrastructure.cil;
+package ru.mephi.db.infrastructure.cli;
 
-import lombok.NonNull;
 import lombok.Setter;
 import org.fusesource.jansi.Ansi;
 import org.fusesource.jansi.AnsiConsole;
-import ru.mephi.db.application.adapter.cli.OutputBoundary;
+import ru.mephi.db.application.adapter.io.OutputBoundary;
 
 import javax.inject.Inject;
 import java.io.PrintStream;
@@ -38,8 +37,15 @@ public class CliOutputBoundaryImpl implements OutputBoundary {
         }
     }
 
-    @Override
-    public void send(String message, LogLevel level) {
+    public void showTimestamps(boolean show) {
+        showTimestamp = show;
+    }
+
+    public void enableAnsiColors(boolean enable) {
+        ansiEnabled = enable;
+    }
+
+    private void send(String message, LogLevel level) {
         if (level.ordinal() > minimumLogLevel.ordinal()) {
             return;
         }
@@ -54,10 +60,45 @@ public class CliOutputBoundaryImpl implements OutputBoundary {
                     .a(" ")
                     .a(message)
                     .reset();
-            out.println(ansi);
+            out.print(ansi);
         } else {
-            out.println(timestamp + level.paddedName() + " " + message);
+            out.print(timestamp + level.paddedName() + " " + message);
         }
     }
 
+    @Override
+    public void success(String message) {
+        send(message, LogLevel.SUCCESS);
+    }
+
+    @Override
+    public void error(String message) {
+        send(message, LogLevel.ERROR);
+    }
+
+    @Override
+    public void error(String message, Throwable throwable) {
+        error(message);
+        throwable.printStackTrace(out);
+    }
+
+    @Override
+    public void warning(String message) {
+        send(message, LogLevel.WARN);
+    }
+
+    @Override
+    public void info(String message) {
+        send(message, LogLevel.INFO);
+    }
+
+    @Override
+    public void debug(String message) {
+        send(message, LogLevel.DEBUG);
+    }
+
+    @Override
+    public void verbose(String message) {
+        send(message, LogLevel.VERBOSE);
+    }
 }

@@ -10,7 +10,6 @@ import ru.mephi.db.application.core.command.impl.handler.EmptyCommandHandler;
 import ru.mephi.db.application.core.command.impl.handler.ExitCommandHandler;
 import ru.mephi.db.application.core.command.impl.handler.HelpCommandHandler;
 import ru.mephi.db.application.core.command.impl.handler.SQLQueryCommandHandler;
-import ru.mephi.db.bin.util.command.*;
 
 import javax.inject.Singleton;
 import java.util.ArrayList;
@@ -21,7 +20,7 @@ public abstract class CommandModule {
 
     @Binds
     @IntoSet
-    abstract CommandHandler bindSqlCommand(SQLQueryCommandHandler cmd);
+    abstract CommandHandler bindEmptyCommand(EmptyCommandHandler cmd);
 
     @Binds
     @IntoSet
@@ -33,11 +32,12 @@ public abstract class CommandModule {
 
     @Binds
     @IntoSet
-    abstract CommandHandler bindEmptyCommand(EmptyCommandHandler cmd);
+    abstract CommandHandler bindSqlCommand(SQLQueryCommandHandler cmd);
+
 
     @Provides
     @Singleton
-    static CommandDispatcherImpl provideCommandDispatcher(Set<CommandHandler> commandHandlers) {
+    static CommandDispatcher provideCommandDispatcher(Set<CommandHandler> commandHandlers) {
         return new CommandDispatcherImpl(new ArrayList<>(commandHandlers));
     }
 

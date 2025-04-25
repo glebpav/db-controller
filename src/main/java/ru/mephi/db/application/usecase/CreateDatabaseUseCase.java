@@ -1,10 +1,12 @@
 package ru.mephi.db.application.usecase;
 
 import lombok.AllArgsConstructor;
+import ru.mephi.db.application.adapter.io.OutputBoundary;
 import ru.mephi.db.exception.DatabaseCreateException;
 import ru.mephi.db.exception.DatabaseException;
 import ru.mephi.db.infrastructure.Constants;
 
+import javax.inject.Inject;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -14,8 +16,9 @@ import java.nio.file.StandardOpenOption;
 import java.util.Map;
 import java.util.Properties;
 
-@AllArgsConstructor
+@AllArgsConstructor(onConstructor_ = @Inject)
 public class CreateDatabaseUseCase {
+    OutputBoundary outputBoundary;
 
     public void execute(Path dbPath) throws DatabaseException {
         try {
@@ -37,7 +40,8 @@ public class CreateDatabaseUseCase {
                 }
             }
 
-            System.out.println("Database created successfully at: " + dbPath);
+            outputBoundary.success("Database created successfully at: " + dbPath);
+
 
         } catch (IOException e) {
             throw new DatabaseCreateException(e);

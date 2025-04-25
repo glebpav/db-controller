@@ -1,7 +1,7 @@
 package ru.mephi.db.application.core.command.impl.handler;
 
 import lombok.AllArgsConstructor;
-import ru.mephi.db.application.adapter.cli.OutputBoundary;
+import ru.mephi.db.application.adapter.io.OutputBoundary;
 import ru.mephi.db.application.core.command.CommandHandler;
 import ru.mephi.db.application.core.command.CommandParserUtils;
 import ru.mephi.db.exception.DatabaseException;
@@ -22,7 +22,7 @@ public class ExitCommandHandler implements CommandHandler {
 
     @Override
     public void execute(String commandText) throws DatabaseException {
-        output.send(Constants.EXIT_MESSAGE, OutputBoundary.LogLevel.INFO);
+        output.info(Constants.EXIT_MESSAGE + "\n");
         throw new DatabaseQuitException("Quit command exited");
     }
 }

@@ -9,7 +9,7 @@ import ru.mephi.db.exception.UnsupportedCommandException;
 import javax.inject.Inject;
 import java.util.List;
 
-@AllArgsConstructor(onConstructor_ = @Inject)
+@AllArgsConstructor()
 public class CommandDispatcherImpl implements CommandDispatcher {
     private final List<CommandHandler> commandHandlers;
 

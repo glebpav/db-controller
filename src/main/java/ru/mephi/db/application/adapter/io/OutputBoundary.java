@@ -1,8 +1,7 @@
-package ru.mephi.db.application.adapter.cli;
+package ru.mephi.db.application.adapter.io;
 
 import lombok.Getter;
 import org.fusesource.jansi.Ansi;
-import ru.mephi.db.bin.util.io.OutputUtils;
 
 public interface OutputBoundary {
     @Getter
@@ -36,5 +35,19 @@ public interface OutputBoundary {
         }
     }
 
-    void send(String message, LogLevel level);
+    // void send(String message, LogLevel level);
+
+    void success(String message);
+
+    void error(String message);
+
+    void error(String message, Throwable throwable);
+
+    void warning(String message);
+
+    void info(String message);
+
+    void debug(String message);
+
+    void verbose(String message);
 }

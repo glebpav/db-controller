@@ -4,7 +4,7 @@ import java.util.Set;
 
 public class CommandParserUtils {
 
-    static boolean checkInSet(String input, Set<String> commandsSet) {
+    public static boolean checkInSet(String input, Set<String> commandsSet) {
         return commandsSet.stream().anyMatch(command -> command.equalsIgnoreCase(input));
     }
 
