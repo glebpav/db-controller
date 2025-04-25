@@ -4,6 +4,8 @@ import dagger.Component;
 import ru.mephi.db.application.usecase.ExitDatabaseUseCase;
 import ru.mephi.db.application.usecase.HandleUserInputUseCase;
 import ru.mephi.db.application.usecase.InitializeDatabaseUseCase;
+import ru.mephi.db.di.infrastructure.BoundaryModule;
+import ru.mephi.db.di.infrastructure.DBModule;
 
 import javax.inject.Singleton;
 
@@ -13,7 +15,8 @@ import javax.inject.Singleton;
         UseCaseModule.class,
         CommandModule.class,
         BoundaryModule.class,
-        SQLModule.class
+        SQLModule.class,
+        DBModule.class,
 })
 public interface MainComponent {
     InitializeDatabaseUseCase getInitializeDatabaseUseCase();
