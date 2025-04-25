@@ -1,7 +1,6 @@
 plugins {
     java
     application
-    kotlin("jvm")
 }
 
 repositories {
@@ -25,9 +24,24 @@ dependencies {
     implementation(libs.dagger)
     annotationProcessor(libs.dagger.compiler)
 
+    implementation(libs.jetbrains.annotations)
+
+    implementation(libs.jansi)
+
     testImplementation(libs.junit)
-    implementation(kotlin("stdlib-jdk8"))
+
+    testImplementation(libs.mockito.core)
+    testImplementation(libs.mockito.junit)
+
+    testImplementation(libs.assertJ.core)
 }
-kotlin {
-    jvmToolchain(21)
+
+tasks.test {
+    useJUnit()
+    filter {
+        includeTestsMatching("*Test")
+    }
+    testLogging {
+        events("passed", "skipped", "failed")
+    }
 }
