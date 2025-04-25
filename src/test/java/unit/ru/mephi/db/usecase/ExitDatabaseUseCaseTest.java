@@ -5,7 +5,7 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 import ru.mephi.db.exception.DatabaseExitException;
-import ru.mephi.db.usecase.ExitDatabaseUseCase;
+import ru.mephi.db.application.usecase.ExitDatabaseUseCase;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;

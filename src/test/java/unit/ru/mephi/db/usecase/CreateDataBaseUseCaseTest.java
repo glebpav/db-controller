@@ -5,8 +5,9 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import ru.mephi.db.exception.DatabaseCreateException;
-import ru.mephi.db.usecase.CreateDatabaseUseCase;
-import ru.mephi.db.util.Constants;
+import ru.mephi.db.application.usecase.CreateDatabaseUseCase;
+import ru.mephi.db.infrastructure.Constants;
+import ru.mephi.db.infrastructure.cli.CliOutputBoundaryImpl;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
@@ -24,7 +25,7 @@ public class CreateDataBaseUseCaseTest {
     public void shouldCreateDatabaseSuccessfully() throws Exception {
         // Arrange
         Path testPath = tempFolder.newFolder("test_db").toPath();
-        CreateDatabaseUseCase useCase = new CreateDatabaseUseCase();
+        CreateDatabaseUseCase useCase = new CreateDatabaseUseCase(new CliOutputBoundaryImpl());
 
         // Act
         useCase.execute(testPath);
@@ -45,7 +46,7 @@ public class CreateDataBaseUseCaseTest {
 
         // Arrange
         Path invalidPath = Path.of("/invalid/path");
-        CreateDatabaseUseCase useCase = new CreateDatabaseUseCase();
+        CreateDatabaseUseCase useCase = new CreateDatabaseUseCase(new CliOutputBoundaryImpl());
 
         // Act & Assert
         useCase.execute(invalidPath);
@@ -55,7 +56,7 @@ public class CreateDataBaseUseCaseTest {
     public void shouldWriteCorrectFileContent() throws Exception {
         // Arrange
         Path testPath = tempFolder.newFolder("content_test").toPath();
-        CreateDatabaseUseCase useCase = new CreateDatabaseUseCase();
+        CreateDatabaseUseCase useCase = new CreateDatabaseUseCase(new CliOutputBoundaryImpl());
 
         // Act
         useCase.execute(testPath);
@@ -75,7 +76,7 @@ public class CreateDataBaseUseCaseTest {
         ByteArrayOutputStream outContent = new ByteArrayOutputStream();
         System.setOut(new PrintStream(outContent));
         Path testPath = tempFolder.newFolder("test_db").toPath();
-        CreateDatabaseUseCase useCase = new CreateDatabaseUseCase();
+        CreateDatabaseUseCase useCase = new CreateDatabaseUseCase(new CliOutputBoundaryImpl());
 
         // Act
         useCase.execute(testPath);
