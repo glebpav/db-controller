@@ -3,6 +3,7 @@ package ru.mephi.db.application.core.command.impl.handler;
 import lombok.AllArgsConstructor;
 import ru.mephi.db.application.core.command.CommandHandler;
 import ru.mephi.db.application.core.sql.QueryExecutor;
+import ru.mephi.db.di.qulifier.CommandPriority;
 import ru.mephi.db.exception.DatabaseException;
 import ru.mephi.db.application.core.sql.SQLParser;
 import ru.mephi.db.domain.entity.Query;
@@ -10,6 +11,7 @@ import ru.mephi.db.domain.entity.QueryResult;
 
 import javax.inject.Inject;
 
+@CommandPriority(1)
 @AllArgsConstructor(onConstructor_ = @Inject)
 public class SQLQueryCommandHandler implements CommandHandler {
     SQLParser sqlParser;
