@@ -20,9 +20,11 @@ tasks.jar {
 dependencies {
     implementation(libs.lombok)
     annotationProcessor(libs.lombok)
+    testAnnotationProcessor(libs.lombok)
 
     implementation(libs.dagger)
     annotationProcessor(libs.dagger.compiler)
+    testAnnotationProcessor(libs.dagger.compiler)
 
     implementation(libs.jetbrains.annotations)
 
