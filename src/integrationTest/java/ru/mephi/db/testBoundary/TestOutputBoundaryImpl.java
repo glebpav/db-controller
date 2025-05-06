@@ -1,4 +1,4 @@
-package integration.testBoundary;
+package ru.mephi.db.testBoundary;
 
 import lombok.Getter;
 import ru.mephi.db.infrastructure.cli.CliOutputBoundaryImpl;

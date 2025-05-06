@@ -1,8 +1,8 @@
 // BaseIntegrationTest.java
-package integration;
+package ru.mephi.db;
 
-import integration.di.DaggerTestComponent;
-import integration.di.TestComponent;
+import ru.mephi.db.di.DaggerTestComponent;
+import ru.mephi.db.di.TestComponent;
 import org.junit.After;
 import org.junit.Before;
 

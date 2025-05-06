@@ -1,5 +1,5 @@
 // HelpCommandIntegrationTest.java
-package integration;
+package ru.mephi.db;
 
 import org.junit.Test;
 import ru.mephi.db.exception.DatabaseQuitException;

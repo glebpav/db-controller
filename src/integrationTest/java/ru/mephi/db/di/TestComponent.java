@@ -1,10 +1,9 @@
-package integration.di;
+package ru.mephi.db.di;
 import dagger.Component;
 
 import ru.mephi.db.application.usecase.ExitDatabaseUseCase;
 import ru.mephi.db.application.usecase.HandleUserInputUseCase;
 import ru.mephi.db.application.usecase.InitializeDatabaseUseCase;
-import ru.mephi.db.di.*;
 import ru.mephi.db.di.infrastructure.*;
 
 import javax.inject.Singleton;

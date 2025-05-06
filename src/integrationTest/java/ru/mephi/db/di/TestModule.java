@@ -1,9 +1,9 @@
-package integration.di;
+package ru.mephi.db.di;
 
 import dagger.Module;
 import dagger.Provides;
-import integration.testBoundary.TestInputBoundaryImpl;
-import integration.testBoundary.TestOutputBoundaryImpl;
+import ru.mephi.db.testBoundary.TestInputBoundaryImpl;
+import ru.mephi.db.testBoundary.TestOutputBoundaryImpl;
 import ru.mephi.db.application.adapter.io.InputBoundary;
 import ru.mephi.db.application.adapter.io.OutputBoundary;
 
