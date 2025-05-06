@@ -1,7 +1,6 @@
 package ru.mephi.db.infrastructure.db;
 
 import ru.mephi.db.application.adapter.db.DataRepository;
-
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
@@ -9,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class DataRepositoryImpl implements DataRepository {
@@ -22,6 +22,11 @@ public class DataRepositoryImpl implements DataRepository {
     private static final int TABLE_HEADER_SIZE = 50 + 4 + 100;
     /** Размер указателя на следующую часть таблицы */
     private static final int TABLE_POINTER_SIZE = 100;
+
+    /** Размер блока схемы таблицы в заголовке */
+    private static final int TABLE_SCHEMA_SIZE = 100;
+    /** Максимальное количество полей в схеме */
+    private static final int MAX_SCHEMA_FIELDS = 20;
 
     /**
      * Создает новый файл базы данных в формате TXT с указанным именем.
@@ -101,6 +106,7 @@ public class DataRepositoryImpl implements DataRepository {
      * @return true если таблица уже существует в БД
      * @throws IOException если произошла ошибка ввода-вывода
      */
+    @Override
     public boolean isTableExists(String dbFilePath, String tableFilePath) throws IOException {
         try (RandomAccessFile file = new RandomAccessFile(dbFilePath, "r")) {
             file.seek(50);
@@ -138,16 +144,17 @@ public class DataRepositoryImpl implements DataRepository {
     }
 
     /**
-     * Создает новый файл таблицы в формате TXT с указанным именем.
+     * Создает файл таблицы с указанной схемой
      *
-     * @param tableFilePath абсолютный путь к создаваемому файлу таблицы (с расширением .txt)
-     * @param tableName название таблицы (максимум 50 символов)
-     * @throws IOException если произошла ошибка ввода-вывода
-     * @throws IllegalArgumentException если имя таблицы превышает 50 символов или файл уже существует
+     * @param tableFilePath путь к файлу таблицы
+     * @param tableName название таблицы
+     * @param schema схема таблицы (список пар: тип+"_"+длина для строк)
+     * @throws IOException
      */
     @Override
-    public void createTableFile(String tableFilePath, String tableName) throws IOException {
+    public void createTableFile(String tableFilePath, String tableName, List<String> schema) throws IOException {
         validateTxtExtension(tableFilePath);
+        validateSchema(schema);
 
         Path path = Paths.get(tableFilePath).getParent();
         if (path != null && !Files.exists(path)) {
@@ -159,13 +166,20 @@ public class DataRepositoryImpl implements DataRepository {
         }
 
         try (RandomAccessFile file = new RandomAccessFile(tableFilePath, "rw")) {
+            // Название таблицы
             byte[] nameBytes = tableName.getBytes(StandardCharsets.UTF_8);
             byte[] paddedName = new byte[50];
             System.arraycopy(nameBytes, 0, paddedName, 0, Math.min(nameBytes.length, 50));
             file.write(paddedName);
 
+            // Количество записей (0 при создании)
             file.writeInt(0);
 
+            // Записываем схему
+            byte[] schemaBytes = encodeSchema(schema);
+            file.write(schemaBytes);
+
+            // Указатель на следующую часть (пустой)
             byte[] emptyPointer = new byte[TABLE_POINTER_SIZE];
             file.write(emptyPointer);
         }
@@ -287,6 +301,59 @@ public class DataRepositoryImpl implements DataRepository {
     }
 
     /**
+     * Кодирует схему таблицы в бинарный формат
+     */
+    private byte[] encodeSchema(List<String> schema) {
+        StringBuilder sb = new StringBuilder();
+        for (String field : schema) {
+            sb.append(field).append(";"); // Разделитель полей
+        }
+
+        byte[] schemaBytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        byte[] paddedSchema = new byte[TABLE_SCHEMA_SIZE];
+        System.arraycopy(schemaBytes, 0, paddedSchema, 0, Math.min(schemaBytes.length, TABLE_SCHEMA_SIZE));
+        return paddedSchema;
+    }
+
+    /**
+     * Декодирует схему таблицы из бинарного формата
+     */
+    private List<String> decodeSchema(byte[] schemaBytes) {
+        String schemaStr = new String(schemaBytes, StandardCharsets.UTF_8).trim();
+        return Arrays.asList(schemaStr.split(";"));
+    }
+
+    /**
+     * Проверяет корректность схемы таблицы
+     */
+    private void validateSchema(List<String> schema) {
+        if (schema == null || schema.isEmpty() || schema.size() > MAX_SCHEMA_FIELDS) {
+            throw new IllegalArgumentException("Schema must contain 1-" + MAX_SCHEMA_FIELDS + " fields");
+        }
+
+        for (String field : schema) {
+            if (field.startsWith("int")) {
+                if (!field.equals("int")) {
+                    throw new IllegalArgumentException("Integer field must be 'int'");
+                }
+            }
+            else if (field.startsWith("str_")) {
+                try {
+                    int length = Integer.parseInt(field.substring(4));
+                    if (length <= 0 || length > 1000) {
+                        throw new IllegalArgumentException("String length must be 1-1000");
+                    }
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("Invalid string length format");
+                }
+            }
+            else {
+                throw new IllegalArgumentException("Invalid field type: " + field);
+            }
+        }
+    }
+
+    /**
      * Основной метод для демонстрации функциональности класса.
      *
      * @param args аргументы командной строки (не используются)
@@ -303,11 +370,13 @@ public class DataRepositoryImpl implements DataRepository {
             tableFiles.add("C:\\BDTest\\table1.txt");
             tableFiles.add("C:\\BDTest\\table2.txt");
 
+            List<String> schema = Arrays.asList("int", "str_20", "int");
+
             for (String tableFile : tableFiles) {
                 String tableName = Paths.get(tableFile).getFileName().toString().replace(".txt", "");
 
                 if (!Files.exists(Paths.get(tableFile))) {
-                    dataRepository.createTableFile(tableFile, tableName);
+                    dataRepository.createTableFile(tableFile, tableName, schema);
                     System.out.println("Table created: " + tableFile);
                 }
 
@@ -320,7 +389,7 @@ public class DataRepositoryImpl implements DataRepository {
             }
 
             try {
-                dataRepository.addTableReference(dbFilePath, tableFiles.get(0));
+                dataRepository.addTableReference(dbFilePath, tableFiles.getFirst());
             } catch (IllegalArgumentException e) {
                 System.out.println("Expected error: " + e.getMessage());
             }
