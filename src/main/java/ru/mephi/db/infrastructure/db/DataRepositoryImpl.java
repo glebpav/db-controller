@@ -10,7 +10,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Scanner;
 
 public class DataRepositoryImpl implements DataRepository {
 
@@ -18,6 +17,7 @@ public class DataRepositoryImpl implements DataRepository {
     private static final int DB_HEADER_SIZE = 50 + 4;
     /** Размер указателя на таблицу в файле базы данных */
     private static final int DB_POINTER_SIZE = 100;
+
     /** Размер заголовка файла таблицы (50 байт для имени + 4 байта для количества записей + 100 байт для указателя) */
     private static final int TABLE_HEADER_SIZE = 50 + 4 + 100;
     /** Размер указателя на следующую часть таблицы */
@@ -45,11 +45,13 @@ public class DataRepositoryImpl implements DataRepository {
         }
 
         try (RandomAccessFile file = new RandomAccessFile(dbFilePath, "rw")) {
+            // Записываем заголовок
             byte[] nameBytes = dbName.getBytes(StandardCharsets.UTF_8);
             byte[] paddedName = new byte[50];
             System.arraycopy(nameBytes, 0, paddedName, 0, Math.min(nameBytes.length, 50));
             file.write(paddedName);
 
+            // Количество таблиц (пока 0)
             file.writeInt(0);
         }
     }
@@ -60,17 +62,28 @@ public class DataRepositoryImpl implements DataRepository {
      * @param dbFilePath путь к файлу базы данных (с расширением .txt)
      * @param tableFilePath путь к файлу таблицы (с расширением .txt), который нужно добавить
      * @throws IOException если произошла ошибка ввода-вывода
+     * @throws IllegalArgumentException если таблица уже существует в БД
      */
     @Override
     public void addTableReference(String dbFilePath, String tableFilePath) throws IOException {
         validateTxtExtension(dbFilePath);
         validateTxtExtension(tableFilePath);
 
+        // Проверяем, что таблица еще не добавлена в БД
+        if (isTableExists(dbFilePath, tableFilePath)) {
+            throw new IllegalArgumentException("Table reference already exists in database: " + tableFilePath);
+        }
+
         try (RandomAccessFile file = new RandomAccessFile(dbFilePath, "rw")) {
-            file.seek(50);
+            // Читаем текущее количество таблиц
+            file.seek(50); // Пропускаем название БД
             int tableCount = file.readInt();
+
+            // Увеличиваем счетчик таблиц
             file.seek(50);
             file.writeInt(tableCount + 1);
+
+            // Записываем новую ссылку в конец
             file.seek(DB_HEADER_SIZE + (long) tableCount * DB_POINTER_SIZE);
 
             byte[] pointerBytes = tableFilePath.getBytes(StandardCharsets.UTF_8);
@@ -81,12 +94,56 @@ public class DataRepositoryImpl implements DataRepository {
     }
 
     /**
+     * Проверяет существование таблицы в базе данных
+     *
+     * @param dbFilePath путь к файлу базы данных
+     * @param tableFilePath путь к файлу таблицы для проверки
+     * @return true если таблица уже существует в БД
+     * @throws IOException если произошла ошибка ввода-вывода
+     */
+    public boolean isTableExists(String dbFilePath, String tableFilePath) throws IOException {
+        try (RandomAccessFile file = new RandomAccessFile(dbFilePath, "r")) {
+            file.seek(50);
+            int tableCount = file.readInt();
+
+            byte[] searchBytes = tableFilePath.getBytes(StandardCharsets.UTF_8);
+            byte[] currentPointer = new byte[DB_POINTER_SIZE];
+
+            for (int i = 0; i < tableCount; i++) {
+                file.seek(DB_HEADER_SIZE + (long) i * DB_POINTER_SIZE);
+                file.readFully(currentPointer);
+
+                if (startsWith(currentPointer, searchBytes)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Проверяет, начинается ли массив байтов с указанной последовательности
+     */
+    private boolean startsWith(byte[] array, byte[] prefix) {
+        if (prefix.length > array.length) {
+            return false;
+        }
+
+        for (int i = 0; i < prefix.length; i++) {
+            if (array[i] != prefix[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
      * Создает новый файл таблицы в формате TXT с указанным именем.
      *
      * @param tableFilePath абсолютный путь к создаваемому файлу таблицы (с расширением .txt)
      * @param tableName название таблицы (максимум 50 символов)
      * @throws IOException если произошла ошибка ввода-вывода
-     * @throws IllegalArgumentException если имя таблицы превышает 50 символов
+     * @throws IllegalArgumentException если имя таблицы превышает 50 символов или файл уже существует
      */
     @Override
     public void createTableFile(String tableFilePath, String tableName) throws IOException {
@@ -230,63 +287,43 @@ public class DataRepositoryImpl implements DataRepository {
     }
 
     /**
-     * Проверяет существование таблицы в базе данных.
-     *
-     * @param tableName имя таблицы для проверки (не может быть null или пустым)
-     * @throws UnsupportedOperationException метод пока не реализован
-     * @throws IllegalArgumentException если tableName равен null или пустой
-     */
-    @Override
-    public boolean tableExists(String tableName) {
-        return false;
-    }
-
-    /**
      * Основной метод для демонстрации функциональности класса.
      *
      * @param args аргументы командной строки (не используются)
      */
     public static void main(String[] args) {
-        DataRepositoryImpl dataRepository = new DataRepositoryImpl();
-        String dbFilePath = "C:\\BDTest\\database_description.txt";
-        String tableToDelete = "C:\\BDTest\\table2.txt";
-
         try {
+            DataRepositoryImpl dataRepository = new DataRepositoryImpl();
+
+            String dbFilePath = "C:\\BDTest\\database1.txt";
             dataRepository.createDatabaseFile(dbFilePath, "MyTestDatabase");
             System.out.println("Database file created: " + dbFilePath);
 
-            List<String> tableFiles = List.of(
-                    "C:\\BDTest\\table1.txt",
-                    tableToDelete,
-                    "C:\\BDTest\\table3.txt"
-            );
-
+            List<String> tableFiles = new ArrayList<>();
+            tableFiles.add("C:\\BDTest\\table1.txt");
+            tableFiles.add("C:\\BDTest\\table2.txt");
 
             for (String tableFile : tableFiles) {
                 String tableName = Paths.get(tableFile).getFileName().toString().replace(".txt", "");
-                dataRepository.createTableFile(tableFile, tableName);
-                dataRepository.addTableReference(dbFilePath, tableFile);
-                System.out.println("Table created and added to DB: " + tableFile);
+
+                if (!Files.exists(Paths.get(tableFile))) {
+                    dataRepository.createTableFile(tableFile, tableName);
+                    System.out.println("Table created: " + tableFile);
+                }
+
+                if (!dataRepository.isTableExists(dbFilePath, tableFile)) {
+                    dataRepository.addTableReference(dbFilePath, tableFile);
+                    System.out.println("Table reference added to DB: " + tableFile);
+                } else {
+                    System.out.println("Table reference already exists in DB: " + tableFile);
+                }
             }
 
-            System.out.println("\nPress Enter to delete entire database...");
-            new Scanner(System.in).nextLine();
-
-            System.out.println("\nAttempting to delete single table: " + tableToDelete);
             try {
-                dataRepository.removeTableReference(dbFilePath, tableToDelete);
-                dataRepository.deleteTableFile(tableToDelete);
-                System.out.println("Table successfully deleted: " + tableToDelete);
-
-            } catch (IOException e) {
-                System.err.println("Error deleting table: " + e.getMessage());
+                dataRepository.addTableReference(dbFilePath, tableFiles.get(0));
+            } catch (IllegalArgumentException e) {
+                System.out.println("Expected error: " + e.getMessage());
             }
-
-            System.out.println("\nPress Enter to delete entire database...");
-            new Scanner(System.in).nextLine();
-
-            dataRepository.deleteDatabaseFile(dbFilePath);
-            System.out.println("Database and all remaining tables deleted successfully");
 
         } catch (IOException e) {
             System.err.println("Error: " + e.getMessage());
@@ -295,4 +332,5 @@ public class DataRepositoryImpl implements DataRepository {
             System.err.println("Validation error: " + e.getMessage());
         }
     }
+
 }
