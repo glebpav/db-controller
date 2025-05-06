@@ -1,7 +1,7 @@
 package ru.mephi.db.infrastructure.db;
 
 import ru.mephi.db.application.adapter.db.DataRepository;
-import ru.mephi.db.domain.entity.Table;
+
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Scanner;
 
 public class DataRepositoryImpl implements DataRepository {
 
@@ -114,6 +115,109 @@ public class DataRepositoryImpl implements DataRepository {
     }
 
     /**
+     * Удаляет файл базы данных и все связанные с ним таблицы.
+     *
+     * @param dbFilePath абсолютный путь к файлу базы данных (с расширением .txt)
+     * @throws IOException если произошла ошибка ввода-вывода при удалении файлов
+     * @throws IllegalArgumentException если файл не имеет расширения .txt
+     */
+    @Override
+    public void deleteDatabaseFile(String dbFilePath) throws IOException {
+        validateTxtExtension(dbFilePath);
+
+        try (RandomAccessFile dbFile = new RandomAccessFile(dbFilePath, "r")) {
+            dbFile.seek(50);
+            int tableCount = dbFile.readInt();
+
+            for (int i = 0; i < tableCount; i++) {
+                dbFile.seek(DB_HEADER_SIZE + (long) i * DB_POINTER_SIZE);
+                byte[] pointerBytes = new byte[DB_POINTER_SIZE];
+                dbFile.readFully(pointerBytes);
+                String tablePath = new String(pointerBytes, StandardCharsets.UTF_8).trim();
+
+                if (!tablePath.isEmpty()) {
+                    deleteTableFile(tablePath);
+                }
+            }
+        }
+        Files.deleteIfExists(Paths.get(dbFilePath));
+    }
+
+    /**
+     * Удаляет файл таблицы и все её связанные части (если таблица разделена на несколько файлов).
+     *
+     * @param tableFilePath абсолютный путь к файлу таблицы (с расширением .txt)
+     * @throws IOException если произошла ошибка ввода-вывода при удалении
+     * @throws IllegalArgumentException если файл не имеет расширения .txt
+     */
+    @Override
+    public void deleteTableFile(String tableFilePath) throws IOException {
+        validateTxtExtension(tableFilePath);
+
+        try (RandomAccessFile tableFile = new RandomAccessFile(tableFilePath, "r")) {
+            tableFile.seek(50 + 4);
+            byte[] nextPartPointer = new byte[TABLE_POINTER_SIZE];
+            tableFile.readFully(nextPartPointer);
+            String nextPartPath = new String(nextPartPointer, StandardCharsets.UTF_8).trim();
+
+            if (!nextPartPath.isEmpty()) {
+                deleteTableFile(nextPartPath);
+            }
+        }
+
+        Files.deleteIfExists(Paths.get(tableFilePath));
+    }
+
+    /**
+     * Удаляет ссылку на таблицу из файла базы данных.
+     *
+     * @param dbFilePath путь к файлу базы данных (с расширением .txt)
+     * @param tableFilePath путь к файлу таблицы (с расширением .txt), который нужно удалить
+     * @throws IOException если произошла ошибка ввода-вывода
+     * @throws IllegalArgumentException если файлы имеют неверное расширение
+     */
+    @Override
+    public void removeTableReference(String dbFilePath, String tableFilePath) throws IOException {
+        validateTxtExtension(dbFilePath);
+        validateTxtExtension(tableFilePath);
+
+        try (RandomAccessFile file = new RandomAccessFile(dbFilePath, "rw")) {
+            file.seek(50);
+            int tableCount = file.readInt();
+
+            List<String> remainingTables = new ArrayList<>();
+
+            for (int i = 0; i < tableCount; i++) {
+                file.seek(DB_HEADER_SIZE + (long) i * DB_POINTER_SIZE);
+                byte[] pointerBytes = new byte[DB_POINTER_SIZE];
+                file.readFully(pointerBytes);
+                String currentPath = new String(pointerBytes, StandardCharsets.UTF_8).trim();
+
+                if (!currentPath.equals(tableFilePath)) {
+                    remainingTables.add(currentPath);
+                }
+            }
+
+            file.seek(50);
+            file.writeInt(remainingTables.size());
+
+            for (int i = 0; i < remainingTables.size(); i++) {
+                file.seek(DB_HEADER_SIZE + (long) i * DB_POINTER_SIZE);
+                byte[] pathBytes = remainingTables.get(i).getBytes(StandardCharsets.UTF_8);
+                byte[] paddedPath = new byte[DB_POINTER_SIZE];
+                System.arraycopy(pathBytes, 0, paddedPath, 0, Math.min(pathBytes.length, DB_POINTER_SIZE));
+                file.write(paddedPath);
+            }
+
+            byte[] empty = new byte[DB_POINTER_SIZE];
+            for (int i = remainingTables.size(); i < tableCount; i++) {
+                file.seek(DB_HEADER_SIZE + (long) i * DB_POINTER_SIZE);
+                file.write(empty);
+            }
+        }
+    }
+
+    /**
      * Проверяет, что файл имеет расширение .txt
      *
      * @param filePath путь к файлу для проверки
@@ -125,6 +229,13 @@ public class DataRepositoryImpl implements DataRepository {
         }
     }
 
+    /**
+     * Проверяет существование таблицы в базе данных.
+     *
+     * @param tableName имя таблицы для проверки (не может быть null или пустым)
+     * @throws UnsupportedOperationException метод пока не реализован
+     * @throws IllegalArgumentException если tableName равен null или пустой
+     */
     @Override
     public boolean tableExists(String tableName) {
         return false;
@@ -136,16 +247,19 @@ public class DataRepositoryImpl implements DataRepository {
      * @param args аргументы командной строки (не используются)
      */
     public static void main(String[] args) {
+        DataRepositoryImpl dataRepository = new DataRepositoryImpl();
+        String dbFilePath = "C:\\BDTest\\database_description.txt";
+        String tableToDelete = "C:\\BDTest\\table2.txt";
+
         try {
-            DataRepositoryImpl dataRepository = new DataRepositoryImpl();
-            String dbFilePath = "C:\\BDTest\\database_description.txt";
             dataRepository.createDatabaseFile(dbFilePath, "MyTestDatabase");
             System.out.println("Database file created: " + dbFilePath);
 
-            List<String> tableFiles = new ArrayList<>();
-            tableFiles.add("C:\\BDTest\\table1.txt");
-            tableFiles.add("C:\\BDTest\\table2.txt");
-            tableFiles.add("C:\\BDTest\\table2.txt");
+            List<String> tableFiles = List.of(
+                    "C:\\BDTest\\table1.txt",
+                    tableToDelete,
+                    "C:\\BDTest\\table3.txt"
+            );
 
 
             for (String tableFile : tableFiles) {
@@ -155,6 +269,25 @@ public class DataRepositoryImpl implements DataRepository {
                 System.out.println("Table created and added to DB: " + tableFile);
             }
 
+            System.out.println("\nPress Enter to delete entire database...");
+            new Scanner(System.in).nextLine();
+
+            System.out.println("\nAttempting to delete single table: " + tableToDelete);
+            try {
+                dataRepository.removeTableReference(dbFilePath, tableToDelete);
+                dataRepository.deleteTableFile(tableToDelete);
+                System.out.println("Table successfully deleted: " + tableToDelete);
+
+            } catch (IOException e) {
+                System.err.println("Error deleting table: " + e.getMessage());
+            }
+
+            System.out.println("\nPress Enter to delete entire database...");
+            new Scanner(System.in).nextLine();
+
+            dataRepository.deleteDatabaseFile(dbFilePath);
+            System.out.println("Database and all remaining tables deleted successfully");
+
         } catch (IOException e) {
             System.err.println("Error: " + e.getMessage());
             e.printStackTrace();
@@ -162,5 +295,4 @@ public class DataRepositoryImpl implements DataRepository {
             System.err.println("Validation error: " + e.getMessage());
         }
     }
-
 }
