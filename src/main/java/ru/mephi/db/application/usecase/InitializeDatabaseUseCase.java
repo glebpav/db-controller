@@ -8,6 +8,7 @@ import ru.mephi.db.exception.DatabaseException;
 import ru.mephi.db.exception.DatabaseInitException;
 import ru.mephi.db.exception.DatabaseQuitException;
 import ru.mephi.db.infrastructure.Constants;
+import ru.mephi.db.infrastructure.db.DatabasePathProvider;
 
 import javax.inject.Inject;
 import java.io.IOException;
@@ -23,9 +24,11 @@ public class InitializeDatabaseUseCase {
     private final InputBoundary input;
     private final OutputBoundary output;
     private final CreateDatabaseUseCase createDatabaseUseCase;
-
+    private final DatabasePathProvider pathProvider;
 
     public FileLock execute(Path dbPath) throws DatabaseException {
+        pathProvider.setDatabasePath(dbPath);
+
         if (!Files.exists(dbPath)) {
             boolean create = IOUtils.promptYesNo(
                     input,

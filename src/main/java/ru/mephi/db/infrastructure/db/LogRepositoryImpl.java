@@ -15,7 +15,7 @@ import java.nio.file.StandardOpenOption;
 
 @AllArgsConstructor(onConstructor_ = @Inject)
 public class LogRepositoryImpl implements LogRepository {
-    private final Path logFilePath;
+    private final DatabasePathProvider pathProvider;
 
     @Override
     public void startTransaction(String transactionId) throws DatabaseException {
@@ -50,7 +50,7 @@ public class LogRepositoryImpl implements LogRepository {
 
     private void writeLine(String line) throws IOException {
         try (BufferedWriter bw = Files.newBufferedWriter(
-                logFilePath,
+                pathProvider.getLogFilePath(),
                 StandardCharsets.UTF_8,
                 StandardOpenOption.CREATE,
                 StandardOpenOption.APPEND)) {
@@ -59,5 +59,4 @@ public class LogRepositoryImpl implements LogRepository {
             bw.flush();
         }
     }
-
 }

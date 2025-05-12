@@ -34,5 +34,4 @@ public class AppModule {
             throw new RuntimeException(e);
         }
     }
-
 }
