@@ -47,6 +47,10 @@ public class InitializeDatabaseUseCase {
         if (!Files.exists(dbInfoFile))
             throw new DatabaseInitException("Database metadata file missing");
 
+        Path dbLogFile = dbPath.resolve(Constants.DB_LOG_FILE);
+        if (!Files.exists(dbLogFile))
+            throw new DatabaseInitException("Database log file missing");
+
         try {
             Path lockFile = dbPath.resolve(Constants.DB_LOCK_FILE);
             @SuppressWarnings("resource")
