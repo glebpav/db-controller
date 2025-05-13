@@ -77,6 +77,7 @@ class DataRepositoryImplTest {
         assertThrows(IllegalArgumentException.class,
                 () -> dataRepository.createDatabaseFile(dbFilePath, longName));
     }
+
     @Test
     void createTableFile_ShouldAccept50CharName() {
         String exactLengthName = "a".repeat(50);
@@ -194,103 +195,103 @@ class DataRepositoryImplTest {
         assertTrue(shorterResult, "Должно вернуть true, когда префикс короче массива");
     }
 
-        @Test
-        void validateSchema_ShouldThrowForNullSchema() throws Exception {
-            assertPrivateValidateSchemaThrows(
-                    null,
-                    "Schema must contain 1-20 fields"
-            );
-        }
+    @Test
+    void validateSchema_ShouldThrowForNullSchema() throws Exception {
+        assertPrivateValidateSchemaThrows(
+                null,
+                "Schema must contain 1-20 fields"
+        );
+    }
 
-        @Test
-        void validateSchema_ShouldThrowForInvalidIntFormat1() throws Exception {
-            assertPrivateValidateSchemaThrows(
-                    List.of("int1"),
-                    "Integer field must be 'int'"
-            );
-        }
+    @Test
+    void validateSchema_ShouldThrowForInvalidIntFormat1() throws Exception {
+        assertPrivateValidateSchemaThrows(
+                List.of("int1"),
+                "Integer field must be 'int'"
+        );
+    }
 
-        @Test
-        void validateSchema_ShouldThrowForInvalidIntFormat2() throws Exception {
-            assertPrivateValidateSchemaThrows(
-                    List.of("int_"),
-                    "Integer field must be 'int'"
-            );
-        }
+    @Test
+    void validateSchema_ShouldThrowForInvalidIntFormat2() throws Exception {
+        assertPrivateValidateSchemaThrows(
+                List.of("int_"),
+                "Integer field must be 'int'"
+        );
+    }
 
-        @Test
-        void validateSchema_ShouldThrowForInvalidStringLength1() throws Exception {
-            assertPrivateValidateSchemaThrows(
-                    List.of("str_0"),
-                    "String length must be 1-1000"
-            );
-        }
+    @Test
+    void validateSchema_ShouldThrowForInvalidStringLength1() throws Exception {
+        assertPrivateValidateSchemaThrows(
+                List.of("str_0"),
+                "String length must be 1-1000"
+        );
+    }
 
-        @Test
-        void validateSchema_ShouldThrowForInvalidStringLength2() throws Exception {
-            assertPrivateValidateSchemaThrows(
-                    List.of("str_1001"),
-                    "String length must be 1-1000"
-            );
-        }
+    @Test
+    void validateSchema_ShouldThrowForInvalidStringLength2() throws Exception {
+        assertPrivateValidateSchemaThrows(
+                List.of("str_1001"),
+                "String length must be 1-1000"
+        );
+    }
 
-        @Test
-        void validateSchema_ShouldThrowForInvalidStringFormat1() throws Exception {
-            assertPrivateValidateSchemaThrows(
-                    List.of("str_"),
-                    "Invalid string length format"
-            );
-        }
+    @Test
+    void validateSchema_ShouldThrowForInvalidStringFormat1() throws Exception {
+        assertPrivateValidateSchemaThrows(
+                List.of("str_"),
+                "Invalid string length format"
+        );
+    }
 
-        @Test
-        void validateSchema_ShouldThrowForInvalidStringFormat2() throws Exception {
-            assertPrivateValidateSchemaThrows(
-                    List.of("str_abc"),
-                    "Invalid string length format"
-            );
-        }
+    @Test
+    void validateSchema_ShouldThrowForInvalidStringFormat2() throws Exception {
+        assertPrivateValidateSchemaThrows(
+                List.of("str_abc"),
+                "Invalid string length format"
+        );
+    }
 
-        @Test
-        void validateSchema_ShouldThrowForInvalidType1() throws Exception {
-            assertPrivateValidateSchemaThrows(
-                    List.of("float"),
-                    "Invalid field type: float"
-            );
-        }
+    @Test
+    void validateSchema_ShouldThrowForInvalidType1() throws Exception {
+        assertPrivateValidateSchemaThrows(
+                List.of("float"),
+                "Invalid field type: float"
+        );
+    }
 
-        @Test
-        void validateSchema_ShouldThrowForInvalidType2() throws Exception {
-            assertPrivateValidateSchemaThrows(
-                    List.of("bool"),
-                    "Invalid field type: bool"
-            );
-        }
+    @Test
+    void validateSchema_ShouldThrowForInvalidType2() throws Exception {
+        assertPrivateValidateSchemaThrows(
+                List.of("bool"),
+                "Invalid field type: bool"
+        );
+    }
 
-        @Test
-        void validateSchema_ShouldAcceptValidSchema() throws Exception {
-            callPrivateValidateSchema(Arrays.asList("int", "str_20", "str_1000"));
-            // Если не будет исключения - тест пройден
-        }
+    @Test
+    void validateSchema_ShouldAcceptValidSchema() throws Exception {
+        callPrivateValidateSchema(Arrays.asList("int", "str_20", "str_1000"));
+        // Если не будет исключения - тест пройден
+    }
 
 
-        private void callPrivateValidateSchema(List<String> schema) throws Exception {
-            Method method = DataRepositoryImpl.class.getDeclaredMethod("validateSchema", List.class);
-            method.setAccessible(true);
-            method.invoke(dataRepository, schema);
-        }
+    private void callPrivateValidateSchema(List<String> schema) throws Exception {
+        Method method = DataRepositoryImpl.class.getDeclaredMethod("validateSchema", List.class);
+        method.setAccessible(true);
+        method.invoke(dataRepository, schema);
+    }
 
-        private void assertPrivateValidateSchemaThrows(List<String> schema, String expectedMessage) throws Exception {
-            Method method = DataRepositoryImpl.class.getDeclaredMethod("validateSchema", List.class);
-            method.setAccessible(true);
+    private void assertPrivateValidateSchemaThrows(List<String> schema, String expectedMessage) throws Exception {
+        Method method = DataRepositoryImpl.class.getDeclaredMethod("validateSchema", List.class);
+        method.setAccessible(true);
 
-            Exception exception = assertThrows(
-                    Exception.class,
-                    () -> method.invoke(dataRepository, schema)
-            );
+        Exception exception = assertThrows(
+                Exception.class,
+                () -> method.invoke(dataRepository, schema)
+        );
 
-            assertEquals(IllegalArgumentException.class, exception.getCause().getClass());
-            assertEquals(expectedMessage, exception.getCause().getMessage());
-        }
+        assertEquals(IllegalArgumentException.class, exception.getCause().getClass());
+        assertEquals(expectedMessage, exception.getCause().getMessage());
+    }
 
     @Test
     void decodeSchema_ShouldCorrectlySplitSchemaString() throws Exception {
@@ -303,6 +304,7 @@ class DataRepositoryImplTest {
 
         assertEquals(Arrays.asList("int", "str_20", "date"), result);
     }
+
     @Test
     void createTableFile_ShouldThrowWhenTableNameTooLong() {
         String longTableName = "a".repeat(51);
@@ -439,7 +441,7 @@ class DataRepositoryImplTest {
             file.seek(DataRepositoryImpl.DB_HEADER_SIZE);
             byte[] pointer1 = new byte[DataRepositoryImpl.DB_POINTER_SIZE];
             file.readFully(pointer1);
-            assertEquals(tables.getFirst(), new String(pointer1, StandardCharsets.UTF_8).trim());
+            assertEquals(tables.get(0), new String(pointer1, StandardCharsets.UTF_8).trim());
 
             file.seek(DataRepositoryImpl.DB_HEADER_SIZE + DataRepositoryImpl.DB_POINTER_SIZE);
             byte[] pointer2 = new byte[DataRepositoryImpl.DB_POINTER_SIZE];
@@ -448,10 +450,15 @@ class DataRepositoryImplTest {
         }
 
         Files.deleteIfExists(tempDbPath);
-        for (String tablePath : tables) {
-            Files.deleteIfExists(Path.of(tablePath));
-        }
+        tables.forEach(path -> {
+            try {
+                Files.deleteIfExists(Path.of(path));
+            } catch (IOException e) {
+                System.err.println("Failed to delete " + path + ": " + e.getMessage());
+            }
+        });
     }
+
     @Test
     @DisplayName("Удаление ссылки - проверка очистки освободившегося пространства")
     void removeTableReference_ShouldCleanEmptySpace() throws IOException {
