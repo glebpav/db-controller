@@ -1,6 +1,8 @@
 package ru.mephi.db.infrastructure.db;
 
 import ru.mephi.db.application.adapter.db.DataRepository;
+
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
@@ -14,9 +16,9 @@ import java.util.List;
 public class DataRepositoryImpl implements DataRepository {
 
     /** Размер заголовка файла базы данных (50 байт для имени + 4 байта для количества таблиц) */
-    private static final int DB_HEADER_SIZE = 50 + 4;
+    public static final int DB_HEADER_SIZE = 50 + 4;
     /** Размер указателя на таблицу в файле базы данных */
-    private static final int DB_POINTER_SIZE = 100;
+    public static final int DB_POINTER_SIZE = 100;
 
     /** Размер заголовка файла таблицы (50 байт для имени + 4 байта для количества записей + 100 байт для указателя) */
     private static final int TABLE_HEADER_SIZE = 50 + 4 + 100;
@@ -24,7 +26,7 @@ public class DataRepositoryImpl implements DataRepository {
     private static final int TABLE_POINTER_SIZE = 100;
 
     /** Размер блока схемы таблицы в заголовке */
-    private static final int TABLE_SCHEMA_SIZE = 100;
+    public static final int TABLE_SCHEMA_SIZE = 100;
     /** Максимальное количество полей в схеме */
     private static final int MAX_SCHEMA_FIELDS = 20;
 
@@ -149,7 +151,6 @@ public class DataRepositoryImpl implements DataRepository {
      * @param tableFilePath путь к файлу таблицы
      * @param tableName название таблицы
      * @param schema схема таблицы (список пар: тип+"_"+длина для строк)
-     * @throws IOException
      */
     @Override
     public void createTableFile(String tableFilePath, String tableName, List<String> schema) throws IOException {
@@ -211,6 +212,7 @@ public class DataRepositoryImpl implements DataRepository {
                 }
             }
         }
+
         Files.deleteIfExists(Paths.get(dbFilePath));
     }
 
@@ -225,18 +227,31 @@ public class DataRepositoryImpl implements DataRepository {
     public void deleteTableFile(String tableFilePath) throws IOException {
         validateTxtExtension(tableFilePath);
 
-        try (RandomAccessFile tableFile = new RandomAccessFile(tableFilePath, "r")) {
-            tableFile.seek(50 + 4);
-            byte[] nextPartPointer = new byte[TABLE_POINTER_SIZE];
-            tableFile.readFully(nextPartPointer);
-            String nextPartPath = new String(nextPartPointer, StandardCharsets.UTF_8).trim();
+        if (!Files.exists(Paths.get(tableFilePath))) {
+            throw new IOException("Table file not found: " + tableFilePath);
+        }
 
-            if (!nextPartPath.isEmpty()) {
-                deleteTableFile(nextPartPath);
+        // Сначала собираем все части таблицы
+        List<String> allTableParts = new ArrayList<>();
+        String currentPart = tableFilePath;
+
+        while (currentPart != null && !currentPart.isEmpty()) {
+            allTableParts.add(currentPart);
+
+            try (RandomAccessFile tableFile = new RandomAccessFile(currentPart, "r")) {
+                tableFile.seek(50 + 4 + TABLE_SCHEMA_SIZE);
+                byte[] nextPartPointer = new byte[TABLE_POINTER_SIZE];
+                tableFile.readFully(nextPartPointer);
+                currentPart = new String(nextPartPointer, StandardCharsets.UTF_8).trim();
+            } catch (FileNotFoundException e) {
+                currentPart = null; // Прерываем цикл, если файл не найден
             }
         }
 
-        Files.deleteIfExists(Paths.get(tableFilePath));
+        // Удаляем все части в обратном порядке (от последней к первой)
+        for (int i = allTableParts.size() - 1; i >= 0; i--) {
+            Files.deleteIfExists(Paths.get(allTableParts.get(i)));
+        }
     }
 
     /**
@@ -256,11 +271,11 @@ public class DataRepositoryImpl implements DataRepository {
             file.seek(50);
             int tableCount = file.readInt();
 
-            List<String> remainingTables = new ArrayList<>();
-
+            // Собираем все ссылки кроме удаляемой
+            List<String> remainingTables = new ArrayList<>(tableCount);
             for (int i = 0; i < tableCount; i++) {
-                file.seek(DB_HEADER_SIZE + (long) i * DB_POINTER_SIZE);
-                byte[] pointerBytes = new byte[DB_POINTER_SIZE];
+                file.seek(DataRepositoryImpl.DB_HEADER_SIZE + (long) i * DataRepositoryImpl.DB_POINTER_SIZE);
+                byte[] pointerBytes = new byte[DataRepositoryImpl.DB_POINTER_SIZE];
                 file.readFully(pointerBytes);
                 String currentPath = new String(pointerBytes, StandardCharsets.UTF_8).trim();
 
@@ -272,17 +287,18 @@ public class DataRepositoryImpl implements DataRepository {
             file.seek(50);
             file.writeInt(remainingTables.size());
 
+            // Перезаписываем оставшиеся ссылки
             for (int i = 0; i < remainingTables.size(); i++) {
-                file.seek(DB_HEADER_SIZE + (long) i * DB_POINTER_SIZE);
+                file.seek(DataRepositoryImpl.DB_HEADER_SIZE + (long) i * DataRepositoryImpl.DB_POINTER_SIZE);
                 byte[] pathBytes = remainingTables.get(i).getBytes(StandardCharsets.UTF_8);
-                byte[] paddedPath = new byte[DB_POINTER_SIZE];
-                System.arraycopy(pathBytes, 0, paddedPath, 0, Math.min(pathBytes.length, DB_POINTER_SIZE));
+                byte[] paddedPath = new byte[DataRepositoryImpl.DB_POINTER_SIZE];
+                System.arraycopy(pathBytes, 0, paddedPath, 0, Math.min(pathBytes.length, DataRepositoryImpl.DB_POINTER_SIZE));
                 file.write(paddedPath);
             }
 
-            byte[] empty = new byte[DB_POINTER_SIZE];
+            byte[] empty = new byte[DataRepositoryImpl.DB_POINTER_SIZE];
             for (int i = remainingTables.size(); i < tableCount; i++) {
-                file.seek(DB_HEADER_SIZE + (long) i * DB_POINTER_SIZE);
+                file.seek(DataRepositoryImpl.DB_HEADER_SIZE + (long) i * DataRepositoryImpl.DB_POINTER_SIZE);
                 file.write(empty);
             }
         }
@@ -350,55 +366,6 @@ public class DataRepositoryImpl implements DataRepository {
             else {
                 throw new IllegalArgumentException("Invalid field type: " + field);
             }
-        }
-    }
-
-    /**
-     * Основной метод для демонстрации функциональности класса.
-     *
-     * @param args аргументы командной строки (не используются)
-     */
-    public static void main(String[] args) {
-        try {
-            DataRepositoryImpl dataRepository = new DataRepositoryImpl();
-
-            String dbFilePath = "C:\\BDTest\\database1.txt";
-            dataRepository.createDatabaseFile(dbFilePath, "MyTestDatabase");
-            System.out.println("Database file created: " + dbFilePath);
-
-            List<String> tableFiles = new ArrayList<>();
-            tableFiles.add("C:\\BDTest\\table1.txt");
-            tableFiles.add("C:\\BDTest\\table2.txt");
-
-            List<String> schema = Arrays.asList("int", "str_20", "int");
-
-            for (String tableFile : tableFiles) {
-                String tableName = Paths.get(tableFile).getFileName().toString().replace(".txt", "");
-
-                if (!Files.exists(Paths.get(tableFile))) {
-                    dataRepository.createTableFile(tableFile, tableName, schema);
-                    System.out.println("Table created: " + tableFile);
-                }
-
-                if (!dataRepository.isTableExists(dbFilePath, tableFile)) {
-                    dataRepository.addTableReference(dbFilePath, tableFile);
-                    System.out.println("Table reference added to DB: " + tableFile);
-                } else {
-                    System.out.println("Table reference already exists in DB: " + tableFile);
-                }
-            }
-
-            try {
-                dataRepository.addTableReference(dbFilePath, tableFiles.getFirst());
-            } catch (IllegalArgumentException e) {
-                System.out.println("Expected error: " + e.getMessage());
-            }
-
-        } catch (IOException e) {
-            System.err.println("Error: " + e.getMessage());
-            e.printStackTrace();
-        } catch (IllegalArgumentException e) {
-            System.err.println("Validation error: " + e.getMessage());
         }
     }
 
