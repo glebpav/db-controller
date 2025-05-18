@@ -20,11 +20,12 @@ public class DataRepositoryImpl implements DataRepository {
     /** Размер указателя на таблицу в файле базы данных */
     public static final int DB_POINTER_SIZE = 100;
 
-    /** Размер заголовка файла таблицы (50 байт для имени + 4 байта для количества записей + 100 байт для указателя) */
-    private static final int TABLE_HEADER_SIZE = 50 + 4 + 100;
+    /** Максимальный размер файла таблицы */
+    private static final int TABLE_MAX_SIZE = 65536;
+    /** Размер заголовка файла таблицы (50 байт для имени + 4 байта для количества записей + 100 байт для схемы таблицы + 100 байт для указателя) */
+    private static final int TABLE_HEADER_SIZE = 50 + 4 + 100 + 100;
     /** Размер указателя на следующую часть таблицы */
     private static final int TABLE_POINTER_SIZE = 100;
-
     /** Размер блока схемы таблицы в заголовке */
     public static final int TABLE_SCHEMA_SIZE = 100;
     /** Максимальное количество полей в схеме */
@@ -167,6 +168,11 @@ public class DataRepositoryImpl implements DataRepository {
         }
 
         try (RandomAccessFile file = new RandomAccessFile(tableFilePath, "rw")) {
+            //Создаем файл макс размера
+            byte[] buffer = new byte[TABLE_MAX_SIZE];
+            file.write(buffer);
+            file.seek(0);
+
             // Название таблицы
             byte[] nameBytes = tableName.getBytes(StandardCharsets.UTF_8);
             byte[] paddedName = new byte[50];
@@ -178,7 +184,9 @@ public class DataRepositoryImpl implements DataRepository {
 
             // Записываем схему
             byte[] schemaBytes = encodeSchema(schema);
-            file.write(schemaBytes);
+            byte[] paddedSchema = new byte[TABLE_SCHEMA_SIZE];
+            System.arraycopy(schemaBytes, 0, paddedSchema, 0, Math.min(schemaBytes.length, TABLE_SCHEMA_SIZE));
+            file.write(paddedSchema);
 
             // Указатель на следующую часть (пустой)
             byte[] emptyPointer = new byte[TABLE_POINTER_SIZE];
@@ -366,6 +374,244 @@ public class DataRepositoryImpl implements DataRepository {
             else {
                 throw new IllegalArgumentException("Invalid field type: " + field);
             }
+        }
+    }
+
+    /**
+     * Читает схему таблицы из файла
+     */
+    private List<String> getTableSchema(RandomAccessFile file) throws IOException {
+        file.seek(50 + 4); // Пропускаем название и кол-во записей
+        byte[] schemaBytes = new byte[TABLE_SCHEMA_SIZE];
+        file.readFully(schemaBytes);
+        return decodeSchema(schemaBytes);
+    }
+
+    /**
+     * Проверяет соответствие данных схеме таблицы
+     */
+    private void validateDataAgainstSchema(List<Object> data, List<String> schema) {
+        if (data.size() != schema.size()) {
+            throw new IllegalArgumentException("Data size doesn't match schema");
+        }
+
+        for (int i = 0; i < schema.size(); i++) {
+            String fieldType = schema.get(i);
+            Object value = data.get(i);
+
+            if (fieldType.equals("int")) {
+                if (!(value instanceof Integer)) {
+                    throw new IllegalArgumentException("Field " + i + " must be Integer");
+                }
+            } else if (fieldType.startsWith("str_")) {
+                if (!(value instanceof String)) {
+                    throw new IllegalArgumentException("Field " + i + " must be String");
+                }
+                int maxLength = Integer.parseInt(fieldType.substring(4));
+                if (((String)value).length() > maxLength) {
+                    throw new IllegalArgumentException("String too long for field " + i +
+                            ", max length: " + maxLength);
+                }
+            }
+        }
+    }
+
+    /**
+     * Добавляет запись в таблицу
+     * @param tablePath путь к файлу таблицы
+     * @param data данные для записи
+     * @throws IOException при ошибках ввода-вывода
+     * @throws IllegalArgumentException при несоответствии данных схеме
+     */
+    @Override
+    public void addRecord(String tablePath, List<Object> data) throws IOException {
+        validateTxtExtension(tablePath);
+
+        try (RandomAccessFile file = new RandomAccessFile(tablePath, "rw")) {
+            // Читаем схему и проверяем данные
+            List<String> schema = getTableSchema(file);
+            validateDataAgainstSchema(data, schema);
+
+            // Получаем текущее количество записей
+            file.seek(50);
+            int recordCount = file.readInt();
+
+            // Определяем позицию для записи данных (после заголовка и существующих данных)
+            long dataPosition;
+            if (recordCount == 0) {
+                dataPosition = TABLE_HEADER_SIZE;
+            } else {
+                // Переходим к началу индекса смещений
+                file.seek(file.length() - recordCount * 8L);
+
+                // Читаем последнее смещение и вычисляем конец данных
+                long lastOffset = file.readLong();
+
+                file.seek(lastOffset);
+                dataPosition = file.getFilePointer() + calculateRecordSize(schema, data);
+            }
+
+            //Если нужна новая страница
+            if(dataPosition >= file.length() - (recordCount + 1) * 8L){
+
+                //Нужно доделать обработку этого случая
+
+                return;
+            }
+            //Если вмещается на эту страницу
+            else {
+
+                // Записываем данные
+                file.seek(dataPosition);
+                writeData(file, data, schema);
+
+                // Добавляем смещение в конец файла
+                long offsetPosition = file.length() - (recordCount + 1) * 8L;
+                file.seek(offsetPosition);
+                file.writeLong(dataPosition);
+
+                // Обновляем счетчик записей
+                file.seek(50);
+                file.writeInt(recordCount + 1);
+
+            }
+        }
+    }
+
+    /**
+     * Вычисляет размер записи в байтах
+     */
+    private int calculateRecordSize(List<String> schema, List<Object> data) {
+        int size = 0;
+        for (int i = 0; i < schema.size(); i++) {
+            String type = schema.get(i);
+            if (type.equals("int")) {
+                size += 4;
+            } else if (type.startsWith("str_")) {
+                int maxLength = Integer.parseInt(type.substring(4));
+                size += maxLength; // 4 байта на длину + данные
+            }
+        }
+        return size;
+    }
+
+    /**
+     * Записывает данные в файл согласно схеме
+     */
+    private void writeData(RandomAccessFile file, List<Object> data, List<String> schema) throws IOException {
+        for (int i = 0; i < schema.size(); i++) {
+            String type = schema.get(i);
+            Object value = data.get(i);
+
+            if (type.equals("int")) {
+                file.writeInt((Integer) value);
+            } else if (type.startsWith("str_")) {
+                String str = (String) value;
+                byte[] strBytes = str.getBytes(StandardCharsets.UTF_8);
+                int maxLength = Integer.parseInt(type.substring(4));
+
+                // Записываем длину строки
+                file.writeInt(strBytes.length);
+                // Записываем данные
+                file.write(strBytes);
+                // Дополняем до максимальной длины
+                if (strBytes.length < maxLength) {
+                    byte[] padding = new byte[maxLength - strBytes.length];
+                    file.write(padding);
+                }
+            }
+        }
+    }
+
+    /**
+     * Читает запись из таблицы по индексу
+     */
+    @Override
+    public List<Object> readRecord(String tablePath, int recordIndex) throws IOException {
+        validateTxtExtension(tablePath);
+
+        try (RandomAccessFile file = new RandomAccessFile(tablePath, "r")) {
+            // Проверяем количество записей
+            file.seek(50);
+            int recordCount = file.readInt();
+            if (recordIndex < 0 || recordIndex >= recordCount) {
+                throw new IllegalArgumentException("Invalid record index");
+            }
+
+            // Переходим к нужному смещению в индексе
+            long indexPosition = file.length() - (recordIndex + 1) * 8L;
+            file.seek(indexPosition);
+            long dataOffset = file.readLong();
+
+            // Читаем данные
+            return readData(file, getTableSchema(file), dataOffset);
+        }
+    }
+
+    /**
+     * Читает данные из файла согласно схеме
+     */
+    private List<Object> readData(RandomAccessFile file, List<String> schema, long dataOffset) throws IOException {
+        List<Object> record = new ArrayList<>();
+        file.seek(dataOffset);
+
+        for (String type : schema) {
+            if (type.equals("int")) {
+                record.add(file.readInt());
+            } else if (type.startsWith("str_")) {
+                int length = file.readInt();
+                byte[] bytes = new byte[length];
+                file.readFully(bytes);
+                record.add(new String(bytes, StandardCharsets.UTF_8));
+
+                // Пропускаем padding
+                int maxLength = Integer.parseInt(type.substring(4));
+                if (length < maxLength) {
+                    file.skipBytes(maxLength - length);
+                }
+            }
+        }
+
+        return record;
+    }
+
+    public static void main(String[] args) {
+        try {
+            DataRepositoryImpl repo = new DataRepositoryImpl();
+            String dbFile = "C:\\BDTest\\db.txt";
+            String tableFile = "C:\\BDTest\\users.txt";
+
+            // Создаем БД и таблицу
+            repo.createDatabaseFile(dbFile, "TestDB");
+            List<String> schema = Arrays.asList("int", "str_20", "int"); // ID, Name(10 chars), Age
+            repo.createTableFile(tableFile, "users", schema);
+            repo.addTableReference(dbFile, tableFile);
+
+            // Добавляем записи
+            System.out.println("Adding records:");
+            repo.addRecord(tableFile, Arrays.asList(1, "Alice", 25));
+            repo.addRecord(tableFile, Arrays.asList(2, "Bob", 30));
+            repo.addRecord(tableFile, Arrays.asList(3, "Charlie", 35));
+            repo.addRecord(tableFile, Arrays.asList(4, "Dima", 100));
+            repo.addRecord(tableFile, Arrays.asList(5, "Egor", 3));
+            repo.addRecord(tableFile, Arrays.asList(6, "Gleb", 14));
+
+
+            // Читаем записи
+            System.out.println("\nReading records:");
+            for (int i = 0; i < 6; i++) {
+                List<Object> record = repo.readRecord(tableFile, i);
+                System.out.printf("Record %d: %s%n", i, record);
+            }
+
+            // Проверяем счетчик записей
+            try (RandomAccessFile file = new RandomAccessFile(tableFile, "r")) {
+                file.seek(50);
+                System.out.println("\nTotal records: " + file.readInt());
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
