@@ -1,8 +1,6 @@
 lexer grammar LCombine;
 
-@header {
-  package ru.mephi.db.tools.lexer;
-}
+
 import
     LKeywords,
     LLetters,
@@ -11,3 +9,8 @@ import
     LGeneral
 
 ;
+
+KW_NULL: 'NULL';
+LBRACE: '(';
+RBRACE: ')';
+SEMICOLON: ';';

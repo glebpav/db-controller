@@ -56,24 +56,14 @@ sourceSets["main"].java.srcDir(file(generatedSourcesPath))
 idea.module.generatedSourceDirs.add(file(generatedSourcesPath))
 
 tasks.generateGrammarSource {
-    arguments.addAll(listOf("-package", "ru.mephi.sql.parser"))
-
-    val antlrOutput = layout.buildDirectory.dir("generated-src/antlr/main")
-
-    doLast {
-        val destinationDir = file("$generatedSourcesPath/ru/mephi/sql/parser")
-        println("Copying generated grammar lexer/parser files to main directory.")
-        println("To: $destinationDir")
-
-        copy {
-            from(antlrOutput.get().asFile)
-            into(destinationDir)
-        }
-
-        antlrOutput.get().asFile.parentFile.deleteRecursively()
-    }
-
-    outputs.dir(generatedSourcesPath)
+    maxHeapSize = "64m"
+    arguments = arguments + listOf(
+        "-visitor", // Генерировать visitor
+        "-listener", // Генерировать listener
+        "-package", "ru.mephi.sql.parser", // Указание пакета
+        "-Xexact-output-dir" // Точное расположение выходных файлов
+    )
+    outputDirectory = file("$generatedSourcesPath/ru/mephi/sql/parser")
 }
 
 tasks.clean {
@@ -85,7 +75,6 @@ tasks.clean {
 tasks.compileJava {
     dependsOn(tasks.generateGrammarSource)
 }
-
 // ===========================
 //     Testing
 // ===========================

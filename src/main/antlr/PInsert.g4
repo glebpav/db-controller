@@ -1,4 +1,5 @@
 parser grammar PInsert;
+
 options { tokenVocab=LCombine; }
 
 query : insert_stmt EOF;

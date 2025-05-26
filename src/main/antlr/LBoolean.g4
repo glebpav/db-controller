@@ -1,4 +1,5 @@
 lexer grammar LBoolean;
+
 import LLetters;
 
 OP_Equal        : '=='  ;
@@ -10,4 +11,4 @@ OP_EqualMore    : '>='  ;
 OP_AND          : A N D ;
 OP_OR           : O R   ;
 OP_NOT          : N O T ;
-OP_NotEqual : '<>' | '!=';
+OP_NotEqual     : '<>' | '!=';
