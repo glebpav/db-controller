@@ -17,4 +17,7 @@ public interface DataRepository {
     List<Object> readRecord(String tablePath, int recordIndex) throws IOException;
 
     boolean isTableExists(String dbFilePath, String tableFilePath) throws IOException;
+
+    public void deleteRecord(String tablePath, int recordIndex) throws IOException {
+        validateTxtExtension(tablePath);
 }
