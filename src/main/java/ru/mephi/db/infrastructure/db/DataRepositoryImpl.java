@@ -575,6 +575,45 @@ public class DataRepositoryImpl implements DataRepository {
         return record;
     }
 
+    
+    public void deleteRecord(String tablePath, int recordIndex) throws IOException {
+        validateTxtExtension(tablePath);
+
+        try (RandomAccessFile file = new RandomAccessFile(tablePath, "rw")) {
+            file.seek(50);
+            int recordCount = file.readInt();
+
+            if (recordIndex < 0 || recordIndex >= recordCount) {
+                throw new IllegalArgumentException("Invalid record index");
+            }
+
+            // Считываем все offset-ы
+            List<Long> offsets = new ArrayList<>();
+            long indexStart = file.length() - recordCount * 8L;
+            file.seek(indexStart);
+            for (int i = 0; i < recordCount; i++) {
+                offsets.add(file.readLong());
+            }
+
+            // Удаляем нужный offset
+            offsets.remove(recordIndex);
+            recordCount--;
+
+            // Перезаписываем индекс
+            file.setLength(file.length() - 8); // Удаляем 8 байт из файла
+            file.seek(50);
+            file.writeInt(recordCount);
+
+            file.seek(file.length() - recordCount * 8L);
+            for (Long offset : offsets) {
+                file.writeLong(offset);
+            }
+
+
+        }
+    }
+
+
     public static void main(String[] args) {
         try {
             DataRepositoryImpl repo = new DataRepositoryImpl();
