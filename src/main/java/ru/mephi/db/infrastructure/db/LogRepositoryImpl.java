@@ -1,4 +1,6 @@
 package ru.mephi.db.infrastructure.db;
 
-public class LogRepositoryImpl {
+import ru.mephi.db.application.adapter.db.LogRepository;
+
+public class LogRepositoryImpl implements LogRepository {
 }

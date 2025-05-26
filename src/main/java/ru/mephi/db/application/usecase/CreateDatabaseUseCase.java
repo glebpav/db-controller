@@ -40,8 +40,7 @@ public class CreateDatabaseUseCase {
                 }
             }
 
-            outputBoundary.success("Database created successfully at: " + dbPath);
-
+            outputBoundary.success("Database created successfully at: " + dbPath + "\n");
 
         } catch (IOException e) {
             throw new DatabaseCreateException(e);

@@ -1,27 +1,26 @@
 package ru.mephi.db.di;
-
 import dagger.Component;
+
 import ru.mephi.db.application.usecase.ExitDatabaseUseCase;
 import ru.mephi.db.application.usecase.HandleUserInputUseCase;
 import ru.mephi.db.application.usecase.InitializeDatabaseUseCase;
-import ru.mephi.db.di.infrastructure.BoundaryModule;
-import ru.mephi.db.di.infrastructure.DBModule;
+import ru.mephi.db.di.infrastructure.*;
 
 import javax.inject.Singleton;
 
 @Singleton
 @Component(modules = {
+        TestModule.class,
         AppModule.class,
         UseCaseModule.class,
         CommandModule.class,
-        BoundaryModule.class,
         SQLModule.class,
         DBModule.class,
 })
-public interface MainComponent {
+public interface TestComponent {
     InitializeDatabaseUseCase getInitializeDatabaseUseCase();
-
     HandleUserInputUseCase getHandleUserInputUseCase();
-
     ExitDatabaseUseCase getExitDatabaseUseCase();
+
+    TestModule getTestModule();
 }

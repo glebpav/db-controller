@@ -27,6 +27,7 @@ public class Main {
                 handler.execute();
             }
         } catch (DatabaseQuitException e) {
+            // TODO: remove usage of pure sout
             System.out.println("\n" + e.getMessage());
         } catch (DatabaseException e) { // TODO: Handle properly
             e.printStackTrace(); // TODO: Logger

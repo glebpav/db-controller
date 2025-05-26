@@ -1,4 +1,4 @@
-package unit.ru.mephi.db.usecase;
+package ru.mephi.db.usecase;
 
 import org.junit.Assume;
 import org.junit.Rule;

@@ -45,7 +45,7 @@ public class CliOutputBoundaryImpl implements OutputBoundary {
         ansiEnabled = enable;
     }
 
-    private void send(String message, LogLevel level) {
+    protected void send(String message, LogLevel level) {
         if (level.ordinal() > minimumLogLevel.ordinal()) {
             return;
         }
