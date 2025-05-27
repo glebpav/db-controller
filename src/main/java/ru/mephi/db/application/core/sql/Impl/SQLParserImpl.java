@@ -50,12 +50,11 @@ public class SQLParserImpl implements SQLParser {
         }
     }
     private String parseWhereCondition(String whereClause) throws SQLParseException {
-        if (whereClause == null || whereClause.isEmpty()) {
-            return null;
-        }
-
         try {
-            CharStream input = CharStreams.fromString(whereClause);
+
+            String normalized = whereClause.replace("==", "=");
+            CharStream input = CharStreams.fromString(normalized);
+
             LCombine lexer = new LCombine(input);
             CommonTokenStream tokens = new CommonTokenStream(lexer);
 
@@ -65,7 +64,7 @@ public class SQLParserImpl implements SQLParser {
                 @Override
                 public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol,
                                         int line, int charPos, String msg, RecognitionException e) {
-                    throw new RuntimeException("WHERE syntax error at " + line + ":" + charPos + " - " + msg);
+                    throw new RuntimeException("Syntax error in WHERE: " + msg);
                 }
             });
 
@@ -75,7 +74,7 @@ public class SQLParserImpl implements SQLParser {
 
             return listener.getWhereClause();
         } catch (Exception e) {
-            throw new SQLParseException("Failed to parse WHERE condition: " + e.getMessage());
+            throw new SQLParseException("WHERE condition error: " + e.getMessage());
         }
     }
     private Query parseSelect(CommonTokenStream tokens) throws SQLParseException {
@@ -85,7 +84,7 @@ public class SQLParserImpl implements SQLParser {
         SelectQueryListener listener = new SelectQueryListener();
         ParseTreeWalker.DEFAULT.walk(listener, queryContext);
 
-        // Парсим условие WHERE если оно есть
+
         String whereCondition = null;
         if (listener.hasWhereClause()) {
             whereCondition = parseWhereCondition(listener.getWhereClause());
@@ -235,7 +234,7 @@ public class SQLParserImpl implements SQLParser {
             });
 
             PShowTables.QueryContext ctx = parser.query();
-            // Можно использовать listener, если нужно
+
             new ShowTablesListener();
 
             return Query.builder()
@@ -245,5 +244,6 @@ public class SQLParserImpl implements SQLParser {
             throw new SQLParseException("Failed to parse SHOW TABLES: " + e.getMessage());
         }
     }
+
 
 }

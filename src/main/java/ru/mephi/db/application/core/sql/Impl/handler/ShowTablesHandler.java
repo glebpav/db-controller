@@ -27,7 +27,7 @@ public class ShowTablesHandler implements QueryHandler {
     }
 
     private List<Map<String, Object>> getTablesList() {
-        // Заглушка - реализуйте реальную логику
+        // ДОЛЖНА БЫТЬ РЕАЛИЗАЦиЯ
         return List.of(
                 Map.of("name", "users", "rows", 100),
                 Map.of("name", "products", "rows", 500)

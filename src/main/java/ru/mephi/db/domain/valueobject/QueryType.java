@@ -8,5 +8,6 @@ public enum QueryType {
     COMMIT,
     ROLLBACK,
     SHOW_FILES,
-    SHOW_TABLES
+    SHOW_TABLES,
+    CREATE_TABLE;
 }

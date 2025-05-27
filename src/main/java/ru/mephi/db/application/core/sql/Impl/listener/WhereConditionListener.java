@@ -4,14 +4,15 @@ import ru.mephi.sql.parser.PWhereBaseListener;
 import ru.mephi.sql.parser.PWhere;
 
 public class WhereConditionListener extends PWhereBaseListener {
-    private String whereClause;
-
-    public String getWhereClause() {
-        return whereClause;
-    }
+    private final StringBuilder whereClause = new StringBuilder();
 
     @Override
     public void enterCondition(PWhere.ConditionContext ctx) {
-        whereClause = ctx.getText();
+        // Обрабатываем все дерево условий
+        whereClause.append(ctx.getText());
+    }
+
+    public String getWhereClause() {
+        return whereClause.toString();
     }
 }
