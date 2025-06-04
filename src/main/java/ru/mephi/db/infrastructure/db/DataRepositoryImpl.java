@@ -2,16 +2,16 @@ package ru.mephi.db.infrastructure.db;
 
 import ru.mephi.db.application.adapter.db.DataRepository;
 
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.RandomAccessFile;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class DataRepositoryImpl implements DataRepository {
 
@@ -19,7 +19,6 @@ public class DataRepositoryImpl implements DataRepository {
     public static final int DB_HEADER_SIZE = 50 + 4;
     /** Размер указателя на таблицу в файле базы данных */
     public static final int DB_POINTER_SIZE = 100;
-
     /** Максимальный размер файла таблицы */
     private static final int TABLE_MAX_SIZE = 65536;
     /** Размер заголовка файла таблицы (50 байт для имени + 4 байта для количества записей + 100 байт для схемы таблицы + 100 байт для указателя) */
@@ -30,6 +29,8 @@ public class DataRepositoryImpl implements DataRepository {
     public static final int TABLE_SCHEMA_SIZE = 100;
     /** Максимальное количество полей в схеме */
     private static final int MAX_SCHEMA_FIELDS = 20;
+    /** Максимально допустимая длина строкового поля в таблице (в символах).*/
+    private static final int MAX_STRING_LENGTH = 1000;
 
     /**
      * Создает новый файл базы данных в формате TXT с указанным именем.
@@ -53,13 +54,10 @@ public class DataRepositoryImpl implements DataRepository {
         }
 
         try (RandomAccessFile file = new RandomAccessFile(dbFilePath, "rw")) {
-            // Записываем заголовок
             byte[] nameBytes = dbName.getBytes(StandardCharsets.UTF_8);
             byte[] paddedName = new byte[50];
             System.arraycopy(nameBytes, 0, paddedName, 0, Math.min(nameBytes.length, 50));
             file.write(paddedName);
-
-            // Количество таблиц (пока 0)
             file.writeInt(0);
         }
     }
@@ -77,27 +75,45 @@ public class DataRepositoryImpl implements DataRepository {
         validateTxtExtension(dbFilePath);
         validateTxtExtension(tableFilePath);
 
-        // Проверяем, что таблица еще не добавлена в БД
-        if (isTableExists(dbFilePath, tableFilePath)) {
+        Path dbPath = Paths.get(dbFilePath);
+        Path tablePath = Paths.get(tableFilePath).normalize();
+
+        if (!Files.exists(dbPath)) {
+            throw new FileNotFoundException("Database file not found");
+        }
+        if (!Files.exists(tablePath)) {
+            throw new FileNotFoundException("Table file not found");
+        }
+
+        if (isTableExists(dbFilePath, tableFilePath)) { // Медленно для больших БД (читает все ссылки)
             throw new IllegalArgumentException("Table reference already exists in database: " + tableFilePath);
         }
 
         try (RandomAccessFile file = new RandomAccessFile(dbFilePath, "rw")) {
-            // Читаем текущее количество таблиц
-            file.seek(50); // Пропускаем название БД
+            if (file.length() < DB_HEADER_SIZE) {
+                throw new IOException("Corrupted database file");
+            }
+
+            file.seek(50);
             int tableCount = file.readInt();
 
-            // Увеличиваем счетчик таблиц
+            long newPointerOffset = DB_HEADER_SIZE + (long) tableCount * DB_POINTER_SIZE;
+            if (newPointerOffset + DB_POINTER_SIZE > TABLE_MAX_SIZE) {
+                throw new IllegalStateException("Database cannot contain more tables");
+            }
+
+            byte[] pathBytes = tablePath.toString().getBytes(StandardCharsets.UTF_8);
+            if (pathBytes.length > DB_POINTER_SIZE) {
+                throw new IllegalArgumentException("Table path exceeds maximum length");
+            }
+
             file.seek(50);
             file.writeInt(tableCount + 1);
 
-            // Записываем новую ссылку в конец
-            file.seek(DB_HEADER_SIZE + (long) tableCount * DB_POINTER_SIZE);
-
-            byte[] pointerBytes = tableFilePath.getBytes(StandardCharsets.UTF_8);
-            byte[] paddedPointer = new byte[DB_POINTER_SIZE];
-            System.arraycopy(pointerBytes, 0, paddedPointer, 0, Math.min(pointerBytes.length, DB_POINTER_SIZE));
-            file.write(paddedPointer);
+            file.seek(newPointerOffset);
+            byte[] pointer = new byte[DB_POINTER_SIZE];
+            System.arraycopy(pathBytes, 0, pointer, 0, pathBytes.length);
+            file.write(pointer);
         }
     }
 
@@ -111,18 +127,32 @@ public class DataRepositoryImpl implements DataRepository {
      */
     @Override
     public boolean isTableExists(String dbFilePath, String tableFilePath) throws IOException {
+        validateTxtExtension(dbFilePath);
+
+        if (!Files.exists(Paths.get(dbFilePath))) {
+            throw new FileNotFoundException("Database file not found");
+        }
+
+        Path searchPath = Paths.get(tableFilePath).normalize();
+        byte[] searchBytes = searchPath.toString().getBytes(StandardCharsets.UTF_8);
         try (RandomAccessFile file = new RandomAccessFile(dbFilePath, "r")) {
+            if (file.length() < 54) { // 50 (имя) + 4 (количество таблиц)
+                throw new IOException("Corrupted database file");
+            }
+
             file.seek(50);
             int tableCount = file.readInt();
 
-            byte[] searchBytes = tableFilePath.getBytes(StandardCharsets.UTF_8);
-            byte[] currentPointer = new byte[DB_POINTER_SIZE];
+            long requiredSize = DB_HEADER_SIZE + (long) tableCount * DB_POINTER_SIZE;
+            if (file.length() < requiredSize) {
+                throw new IOException("Corrupted database file: invalid table count");
+            }
 
+            byte[] allPointers = new byte[tableCount * DB_POINTER_SIZE];
+            file.seek(DB_HEADER_SIZE);
             for (int i = 0; i < tableCount; i++) {
-                file.seek(DB_HEADER_SIZE + (long) i * DB_POINTER_SIZE);
-                file.readFully(currentPointer);
-
-                if (startsWith(currentPointer, searchBytes)) {
+                int offset = i * DB_POINTER_SIZE;
+                if (startsWith(allPointers, offset, searchBytes)) {
                     return true;
                 }
             }
@@ -133,25 +163,23 @@ public class DataRepositoryImpl implements DataRepository {
     /**
      * Проверяет, начинается ли массив байтов с указанной последовательности
      */
-    private boolean startsWith(byte[] array, byte[] prefix) {
-        if (prefix.length > array.length) {
-            return false;
+    private boolean startsWith(byte[] dbEntries, int offset, byte[] searchPath) {
+        int length = 0;
+        while (length < DB_POINTER_SIZE && dbEntries[offset + length] != 0) {
+            length++;
         }
-
-        for (int i = 0; i < prefix.length; i++) {
-            if (array[i] != prefix[i]) {
-                return false;
-            }
-        }
-        return true;
+        return Arrays.mismatch(dbEntries, offset, offset + length,
+                searchPath, 0, searchPath.length) == -1;
     }
 
     /**
-     * Создает файл таблицы с указанной схемой
+     * Создает файл таблицы с указанной схемой.
      *
-     * @param tableFilePath путь к файлу таблицы
-     * @param tableName название таблицы
-     * @param schema схема таблицы (список пар: тип+"_"+длина для строк)
+     * @param tableFilePath абсолютный путь к файлу таблицы (с расширением .txt)
+     * @param tableName название таблицы (максимум 50 байт в UTF-8)
+     * @param schema схема таблицы (список полей формата "int" или "str_<длина>")
+     * @throws IOException если произошла ошибка ввода-вывода
+     * @throws IllegalArgumentException если параметры невалидны
      */
     @Override
     public void createTableFile(String tableFilePath, String tableName, List<String> schema) throws IOException {
@@ -203,11 +231,26 @@ public class DataRepositoryImpl implements DataRepository {
      */
     @Override
     public void deleteDatabaseFile(String dbFilePath) throws IOException {
-        validateTxtExtension(dbFilePath);
+        Path dbPath = Paths.get(dbFilePath).toAbsolutePath().normalize();
 
-        try (RandomAccessFile dbFile = new RandomAccessFile(dbFilePath, "r")) {
+        validateTxtExtension(dbPath.toString());
+
+        if (!Files.exists(dbPath)) {
+            throw new FileNotFoundException("Database file not found: " + dbPath);
+        }
+
+        try (RandomAccessFile dbFile = new RandomAccessFile(dbPath.toFile(), "r")) {
+            if (dbFile.length() < DB_HEADER_SIZE) {
+                throw new IOException("Corrupted database file: too small");
+            }
+
             dbFile.seek(50);
             int tableCount = dbFile.readInt();
+
+            long maxPointerOffset = DB_HEADER_SIZE + (long) tableCount * DB_POINTER_SIZE;
+            if (maxPointerOffset > dbFile.length()) {
+                throw new IOException("Corrupted database file: invalid table count");
+            }
 
             for (int i = 0; i < tableCount; i++) {
                 dbFile.seek(DB_HEADER_SIZE + (long) i * DB_POINTER_SIZE);
@@ -216,12 +259,15 @@ public class DataRepositoryImpl implements DataRepository {
                 String tablePath = new String(pointerBytes, StandardCharsets.UTF_8).trim();
 
                 if (!tablePath.isEmpty()) {
-                    deleteTableFile(tablePath);
+                    Path tableFilePath = Paths.get(tablePath).normalize();
+                    if (Files.exists(tableFilePath)) {
+                        deleteTableFile(tableFilePath.toString());
+                    }
                 }
             }
         }
 
-        Files.deleteIfExists(Paths.get(dbFilePath));
+        Files.deleteIfExists(dbPath);
     }
 
     /**
@@ -233,32 +279,44 @@ public class DataRepositoryImpl implements DataRepository {
      */
     @Override
     public void deleteTableFile(String tableFilePath) throws IOException {
+        Path tablePath = Paths.get(tableFilePath).normalize();
         validateTxtExtension(tableFilePath);
 
-        if (!Files.exists(Paths.get(tableFilePath))) {
+        if (!Files.exists(tablePath)) {
             throw new IOException("Table file not found: " + tableFilePath);
         }
 
-        // Сначала собираем все части таблицы
-        List<String> allTableParts = new ArrayList<>();
-        String currentPart = tableFilePath;
-
-        while (currentPart != null && !currentPart.isEmpty()) {
+        List<Path> allTableParts = new ArrayList<>();
+        Path currentPart = tablePath;
+        int partsLimit = 1000; //либо больше взять число(чтоб бесконечного цикла не было)
+        while (currentPart != null && partsLimit --> 0) {
             allTableParts.add(currentPart);
 
-            try (RandomAccessFile tableFile = new RandomAccessFile(currentPart, "r")) {
-                tableFile.seek(50 + 4 + TABLE_SCHEMA_SIZE);
-                byte[] nextPartPointer = new byte[TABLE_POINTER_SIZE];
-                tableFile.readFully(nextPartPointer);
-                currentPart = new String(nextPartPointer, StandardCharsets.UTF_8).trim();
-            } catch (FileNotFoundException e) {
-                currentPart = null; // Прерываем цикл, если файл не найден
+            try (RandomAccessFile tableFile = new RandomAccessFile(currentPart.toFile(), "r")) {
+                if (tableFile.length() < (DB_HEADER_SIZE + TABLE_SCHEMA_SIZE) + TABLE_POINTER_SIZE) {
+                    break; // Файл слишком мал для хранения указателя
+                }
+
+                tableFile.seek(DB_HEADER_SIZE + TABLE_SCHEMA_SIZE);
+                byte[] pointerBytes = new byte[TABLE_POINTER_SIZE];
+                tableFile.readFully(pointerBytes);
+                String nextPart = new String(pointerBytes, StandardCharsets.UTF_8).trim();
+                currentPart = nextPart.isEmpty() ? null : Paths.get(nextPart).normalize();
+            } catch (IOException e) {
+                throw new IOException("Failed to read next part pointer from " + currentPart, e);
             }
         }
 
-        // Удаляем все части в обратном порядке (от последней к первой)
+        List<Path> failedToDelete = new ArrayList<>();
         for (int i = allTableParts.size() - 1; i >= 0; i--) {
-            Files.deleteIfExists(Paths.get(allTableParts.get(i)));
+            try {
+                Files.deleteIfExists(allTableParts.get(i));
+            } catch (IOException e) {
+                failedToDelete.add(allTableParts.get(i));
+            }
+        }
+        if (!failedToDelete.isEmpty()) {
+            throw new IOException("Failed to delete some table parts: " + failedToDelete);
         }
     }
 
@@ -275,40 +333,58 @@ public class DataRepositoryImpl implements DataRepository {
         validateTxtExtension(dbFilePath);
         validateTxtExtension(tableFilePath);
 
+        Path dbPath = Paths.get(dbFilePath);
+        Path targetPath = Paths.get(tableFilePath).normalize();
+
+        if (!Files.exists(dbPath)) {
+            throw new FileNotFoundException("Database file not found");
+        }
+
         try (RandomAccessFile file = new RandomAccessFile(dbFilePath, "rw")) {
+            if (file.length() < DB_HEADER_SIZE) {
+                throw new IOException("Corrupted database file");
+            }
+
             file.seek(50);
             int tableCount = file.readInt();
 
-            // Собираем все ссылки кроме удаляемой
             List<String> remainingTables = new ArrayList<>(tableCount);
+            byte[] pointerBuffer = new byte[DB_POINTER_SIZE];
             for (int i = 0; i < tableCount; i++) {
-                file.seek(DataRepositoryImpl.DB_HEADER_SIZE + (long) i * DataRepositoryImpl.DB_POINTER_SIZE);
-                byte[] pointerBytes = new byte[DataRepositoryImpl.DB_POINTER_SIZE];
-                file.readFully(pointerBytes);
-                String currentPath = new String(pointerBytes, StandardCharsets.UTF_8).trim();
+                file.seek(DB_HEADER_SIZE + (long) i * DB_POINTER_SIZE);
+                file.readFully(pointerBuffer);
 
-                if (!currentPath.equals(tableFilePath)) {
-                    remainingTables.add(currentPath);
+                Path currentPath = Paths.get(
+                        new String(pointerBuffer, StandardCharsets.UTF_8).trim()
+                ).normalize();
+
+                if (!currentPath.equals(targetPath)) {
+                    remainingTables.add(currentPath.toString());
                 }
+            }
+
+            if (remainingTables.size() == tableCount) {
+                return;
             }
 
             file.seek(50);
             file.writeInt(remainingTables.size());
 
-            // Перезаписываем оставшиеся ссылки
+            byte[] allPointers = new byte[remainingTables.size() * DB_POINTER_SIZE];
             for (int i = 0; i < remainingTables.size(); i++) {
-                file.seek(DataRepositoryImpl.DB_HEADER_SIZE + (long) i * DataRepositoryImpl.DB_POINTER_SIZE);
                 byte[] pathBytes = remainingTables.get(i).getBytes(StandardCharsets.UTF_8);
-                byte[] paddedPath = new byte[DataRepositoryImpl.DB_POINTER_SIZE];
-                System.arraycopy(pathBytes, 0, paddedPath, 0, Math.min(pathBytes.length, DataRepositoryImpl.DB_POINTER_SIZE));
-                file.write(paddedPath);
+                System.arraycopy(
+                        pathBytes, 0,
+                        allPointers, i * DB_POINTER_SIZE,
+                        Math.min(pathBytes.length, DB_POINTER_SIZE)
+                );
             }
 
-            byte[] empty = new byte[DataRepositoryImpl.DB_POINTER_SIZE];
-            for (int i = remainingTables.size(); i < tableCount; i++) {
-                file.seek(DataRepositoryImpl.DB_HEADER_SIZE + (long) i * DataRepositoryImpl.DB_POINTER_SIZE);
-                file.write(empty);
-            }
+            file.seek(DB_HEADER_SIZE);
+            file.write(allPointers);
+
+            // Усечение файла
+            file.setLength(DB_HEADER_SIZE + (long) remainingTables.size() * DB_POINTER_SIZE);
         }
     }
 
@@ -327,15 +403,23 @@ public class DataRepositoryImpl implements DataRepository {
     /**
      * Кодирует схему таблицы в бинарный формат
      */
-    private byte[] encodeSchema(List<String> schema) {
-        StringBuilder sb = new StringBuilder();
+    private byte[] encodeSchema(List<String> schema) throws IOException {
         for (String field : schema) {
-            sb.append(field).append(";"); // Разделитель полей
+            if (field.contains(";")) {
+                throw new IllegalArgumentException("Field cannot contain ';' character: " + field);
+            }
         }
 
-        byte[] schemaBytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        String schemaStr = String.join(";", schema);
+        byte[] schemaBytes = schemaStr.getBytes(StandardCharsets.UTF_8);
+        if (schemaBytes.length > TABLE_SCHEMA_SIZE) {
+            throw new IOException("Schema too large (" + schemaBytes.length +
+                    " bytes), maximum is " + TABLE_SCHEMA_SIZE);
+        }
+
         byte[] paddedSchema = new byte[TABLE_SCHEMA_SIZE];
-        System.arraycopy(schemaBytes, 0, paddedSchema, 0, Math.min(schemaBytes.length, TABLE_SCHEMA_SIZE));
+        Arrays.fill(paddedSchema, (byte) 0);
+        System.arraycopy(schemaBytes, 0, paddedSchema, 0, schemaBytes.length);
         return paddedSchema;
     }
 
@@ -343,16 +427,29 @@ public class DataRepositoryImpl implements DataRepository {
      * Декодирует схему таблицы из бинарного формата
      */
     private List<String> decodeSchema(byte[] schemaBytes) {
-        String schemaStr = new String(schemaBytes, StandardCharsets.UTF_8).trim();
-        return Arrays.asList(schemaStr.split(";"));
+        int length = 0;
+        while (length < schemaBytes.length && schemaBytes[length] != 0) {
+            length++;
+        }
+
+        String schemaStr = new String(schemaBytes, 0, length, StandardCharsets.UTF_8);
+        return Arrays.stream(schemaStr.split(";"))
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
     }
 
     /**
-     * Проверяет корректность схемы таблицы
+     * Проверяет корректность схемы таблицы.
+     * @param schema Список полей в формате:
+     *               - "int" для целых чисел
+     *               - "str_<длина>" для строк (длина от 1 до 1000)
+     * @throws IllegalArgumentException если схема некорректна
      */
     private void validateSchema(List<String> schema) {
         if (schema == null || schema.isEmpty() || schema.size() > MAX_SCHEMA_FIELDS) {
-            throw new IllegalArgumentException("Schema must contain 1-" + MAX_SCHEMA_FIELDS + " fields");
+            throw new IllegalArgumentException(
+                    "Schema must contain 1-" + MAX_SCHEMA_FIELDS + " fields"
+            );
         }
 
         for (String field : schema) {
@@ -364,15 +461,19 @@ public class DataRepositoryImpl implements DataRepository {
             else if (field.startsWith("str_")) {
                 try {
                     int length = Integer.parseInt(field.substring(4));
-                    if (length <= 0 || length > 1000) {
+                    if (length <= 0 || length > MAX_STRING_LENGTH) {
                         throw new IllegalArgumentException("String length must be 1-1000");
                     }
                 } catch (NumberFormatException e) {
-                    throw new IllegalArgumentException("Invalid string length format");
+                    throw new IllegalArgumentException(
+                            "Invalid string length format in field: " + field
+                    );
                 }
             }
             else {
-                throw new IllegalArgumentException("Invalid field type: " + field);
+                throw new IllegalArgumentException(
+                        "Invalid field type: " + field + ". Expected 'int' or 'str_<length>'."
+                );
             }
         }
     }
@@ -381,7 +482,11 @@ public class DataRepositoryImpl implements DataRepository {
      * Читает схему таблицы из файла
      */
     private List<String> getTableSchema(RandomAccessFile file) throws IOException {
-        file.seek(50 + 4); // Пропускаем название и кол-во записей
+        if (file.length() < DB_HEADER_SIZE + TABLE_SCHEMA_SIZE) {
+            throw new IOException("File too small to contain schema");
+        }
+
+        file.seek(DB_HEADER_SIZE);
         byte[] schemaBytes = new byte[TABLE_SCHEMA_SIZE];
         file.readFully(schemaBytes);
         return decodeSchema(schemaBytes);
@@ -391,8 +496,14 @@ public class DataRepositoryImpl implements DataRepository {
      * Проверяет соответствие данных схеме таблицы
      */
     private void validateDataAgainstSchema(List<Object> data, List<String> schema) {
+        if (data == null || schema == null) {
+            throw new IllegalArgumentException("Data and schema cannot be null");
+        }
+
         if (data.size() != schema.size()) {
-            throw new IllegalArgumentException("Data size doesn't match schema");
+            throw new IllegalArgumentException(
+                    String.format("Data size (%d) doesn't match schema size (%d)",
+            data.size(), schema.size()));
         }
 
         for (int i = 0; i < schema.size(); i++) {
@@ -401,7 +512,9 @@ public class DataRepositoryImpl implements DataRepository {
 
             if (fieldType.equals("int")) {
                 if (!(value instanceof Integer)) {
-                    throw new IllegalArgumentException("Field " + i + " must be Integer");
+                    throw new IllegalArgumentException(
+                            String.format("Field %d must be Integer, got %s",
+                    i, value.getClass().getSimpleName()));
                 }
             } else if (fieldType.startsWith("str_")) {
                 if (!(value instanceof String)) {
@@ -473,23 +586,36 @@ public class DataRepositoryImpl implements DataRepository {
                 // Обновляем счетчик записей
                 file.seek(50);
                 file.writeInt(recordCount + 1);
-
             }
         }
     }
 
     /**
-     * Вычисляет размер записи в байтах
+     * Вычисляет размер записи в байтах.
+     * @param schema Схема таблицы (например, ["int", "str_10"])
+     * @return Размер записи в байтах
+     * @throws IllegalArgumentException если схема содержит неизвестный тип
      */
     private int calculateRecordSize(List<String> schema, List<Object> data) {
+        if (schema == null) {
+            throw new IllegalArgumentException("Schema cannot be null");
+        }
+
         int size = 0;
-        for (int i = 0; i < schema.size(); i++) {
-            String type = schema.get(i);
+        for (String type : schema) {
             if (type.equals("int")) {
-                size += 4;
-            } else if (type.startsWith("str_")) {
-                int maxLength = Integer.parseInt(type.substring(4));
-                size += maxLength; // 4 байта на длину + данные
+                size += 4; // int = 4 байта
+            }
+            else if (type.startsWith("str_")) {
+                try {
+                    int maxLength = Integer.parseInt(type.substring(4));
+                    size += 4 + maxLength; // 4 байта на длину + данные
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("Invalid string length in type: " + type);
+                }
+            }
+            else {
+                throw new IllegalArgumentException("Unknown field type: " + type);
             }
         }
         return size;
@@ -499,26 +625,42 @@ public class DataRepositoryImpl implements DataRepository {
      * Записывает данные в файл согласно схеме
      */
     private void writeData(RandomAccessFile file, List<Object> data, List<String> schema) throws IOException {
+        byte[] paddingBuffer = new byte[1024];
+
         for (int i = 0; i < schema.size(); i++) {
             String type = schema.get(i);
             Object value = data.get(i);
 
             if (type.equals("int")) {
+                if (!(value instanceof Integer)) {
+                    throw new IllegalArgumentException("Field " + i + " must be Integer");
+                }
+
                 file.writeInt((Integer) value);
             } else if (type.startsWith("str_")) {
-                String str = (String) value;
+                if (!(value instanceof String str)) {
+                    throw new IllegalArgumentException("Field " + i + " must be String");
+                }
+
                 byte[] strBytes = str.getBytes(StandardCharsets.UTF_8);
                 int maxLength = Integer.parseInt(type.substring(4));
 
-                // Записываем длину строки
-                file.writeInt(strBytes.length);
-                // Записываем данные
-                file.write(strBytes);
-                // Дополняем до максимальной длины
-                if (strBytes.length < maxLength) {
-                    byte[] padding = new byte[maxLength - strBytes.length];
-                    file.write(padding);
+                if (strBytes.length > maxLength) {
+                    throw new IllegalArgumentException("String too long for field " + i);
                 }
+
+                file.writeInt(strBytes.length);
+                file.write(strBytes);
+
+                int paddingSize = maxLength - strBytes.length;
+                while (paddingSize > 0) {
+                    int chunk = Math.min(paddingSize, paddingBuffer.length);
+                    file.write(paddingBuffer, 0, chunk);
+                    paddingSize -= chunk;
+                }
+            }
+            else {
+                throw new IllegalArgumentException("Unknown field type: " + type);
             }
         }
     }
@@ -531,19 +673,25 @@ public class DataRepositoryImpl implements DataRepository {
         validateTxtExtension(tablePath);
 
         try (RandomAccessFile file = new RandomAccessFile(tablePath, "r")) {
-            // Проверяем количество записей
             file.seek(50);
             int recordCount = file.readInt();
+
             if (recordIndex < 0 || recordIndex >= recordCount) {
-                throw new IllegalArgumentException("Invalid record index");
+                throw new IllegalArgumentException("Invalid record index: " + recordIndex +
+                        ", available records: " + recordCount);
             }
 
-            // Переходим к нужному смещению в индексе
             long indexPosition = file.length() - (recordIndex + 1) * 8L;
+            if (indexPosition < TABLE_HEADER_SIZE) {
+                throw new IOException("Invalid index position");
+            }
+
             file.seek(indexPosition);
             long dataOffset = file.readLong();
+            if (dataOffset < TABLE_HEADER_SIZE || dataOffset >= file.length()) {
+                throw new IOException("Invalid data offset in index: " + dataOffset);
+            }
 
-            // Читаем данные
             return readData(file, getTableSchema(file), dataOffset);
         }
     }
@@ -559,60 +707,132 @@ public class DataRepositoryImpl implements DataRepository {
             if (type.equals("int")) {
                 record.add(file.readInt());
             } else if (type.startsWith("str_")) {
+                int maxLength = Integer.parseInt(type.substring(4));
                 int length = file.readInt();
+                if (length > maxLength) {
+                    throw new IOException("String length exceeds max allowed size: " + length + " > " + maxLength);
+                }
+
                 byte[] bytes = new byte[length];
                 file.readFully(bytes);
                 record.add(new String(bytes, StandardCharsets.UTF_8));
 
-                // Пропускаем padding
-                int maxLength = Integer.parseInt(type.substring(4));
-                if (length < maxLength) {
-                    file.skipBytes(maxLength - length);
-                }
+                file.skipBytes(maxLength - length);
+            } else {
+                throw new IOException("Unknown field type: " + type);
             }
         }
 
         return record;
     }
 
-    
-    public void deleteRecord(String tablePath, int recordIndex) throws IOException {
-        validateTxtExtension(tablePath);
+    /**
+     * Удаляет запись по указанному индексу.
+     *
+     * @param tablePath   путь к файлу таблицы
+     * @param recordIndex индекс записи (0-based)
+     * @throws IOException              при ошибках чтения/записи
+     * @throws IllegalArgumentException если индекс некорректен
+     */
+    @Override
+    public void deleteRecord(String tablePath, int recordIndex) throws IOException {
+        validateTxtExtension(tablePath);
+        Path backupPath = createBackup(tablePath);
 
-        try (RandomAccessFile file = new RandomAccessFile(tablePath, "rw")) {
-            file.seek(50);
-            int recordCount = file.readInt();
+        try (RandomAccessFile file = new RandomAccessFile(tablePath, "rw")) {
+            // Проверка минимального размера файла
+            if (file.length() < TABLE_HEADER_SIZE + 8) {
+                throw new IOException("File is too small or corrupted");
+            }
 
-            if (recordIndex < 0 || recordIndex >= recordCount) {
-                throw new IllegalArgumentException("Invalid record index");
-            }
+            file.seek(50);
+            int recordCount = file.readInt();
 
-            // Считываем все offset-ы
-            List<Long> offsets = new ArrayList<>();
-            long indexStart = file.length() - recordCount * 8L;
-            file.seek(indexStart);
-            for (int i = 0; i < recordCount; i++) {
-                offsets.add(file.readLong());
-            }
+            if (recordIndex < 0 || recordIndex >= recordCount) {
+                throw new IllegalArgumentException("Invalid record index");
+            }
 
-            // Удаляем нужный offset
-            offsets.remove(recordIndex);
-            recordCount--;
+            // Чтение всех смещений
+            List<Long> offsets = readOffsets(file, recordCount);
+            long deletedOffset = offsets.remove(recordIndex);
 
-            // Перезаписываем индекс
-            file.setLength(file.length() - 8); // Удаляем 8 байт из файла
-            file.seek(50);
-            file.writeInt(recordCount);
+            file.seek(deletedOffset);
+            file.writeByte(0xFF); // Маркер удаления
+            truncateFileAndUpdateIndex(file, recordCount - 1, offsets);
 
-            file.seek(file.length() - recordCount * 8L);
-            for (Long offset : offsets) {
-                file.writeLong(offset);
-            }
+            Files.deleteIfExists(backupPath);
+        } catch (Exception e) {
+            restoreFromBackup(tablePath, backupPath);
+            throw new IOException("Failed to delete record", e);
+        }
+    }
 
+    /** Чтение смещений */
+    private List<Long> readOffsets(RandomAccessFile file, int recordCount) throws IOException {
+        long indexStart = file.length() - (long) recordCount * 8;
+        if (indexStart < TABLE_HEADER_SIZE) {
+            throw new IOException("Invalid index start position");
+        }
 
-        }
-    }
+        List<Long> offsets = new ArrayList<>();
+        file.seek(indexStart);
 
+        for (int i = 0; i < recordCount; i++) {
+            offsets.add(file.readLong());
+        }
+
+        return offsets;
+    }
+
+    /**
+     * Усечение файла до нового размера и обновление индекса смещений.
+     * Уменьшает размер файла, обновляет количество записей и перезаписывает смещения.
+     */
+    private void truncateFileAndUpdateIndex(RandomAccessFile file, int newRecordCount, List<Long> offsets)
+            throws IOException {
+        long oldLength = file.length();
+        long newLength = oldLength - 8;
+        if (newLength < TABLE_HEADER_SIZE) {
+            throw new IOException("File size cannot be less than header size");
+        }
+
+        file.setLength(newLength);
+        file.seek(50);
+        file.writeInt(newRecordCount);
+
+        long newIndexStart = newLength - (long) newRecordCount* 8;
+        if (newIndexStart < TABLE_HEADER_SIZE) {
+            throw new IOException("New index start is invalid: " + newIndexStart);
+        }
+
+        file.seek(newIndexStart);
+        for (Long offset : offsets) {
+            file.writeLong(offset);
+        }
+    }
+
+    /**
+     * Создание резервной копии файла таблицы.
+     * Возвращает путь к созданному backup-файлу с расширением .bak.
+     */
+    private Path createBackup(String tablePath) throws IOException {
+        Path path = Paths.get(tablePath);
+        Path backup = path.resolveSibling(path.getFileName() + ".bak");
+        Files.copy(path, backup, StandardCopyOption.REPLACE_EXISTING);
+        return backup;
+    }
+
+    /**
+     * Восстановление таблицы из резервной копии.
+     * Заменяет текущий файл таблицы backup-файлом, если он существует.
+     */
+    private void restoreFromBackup(String tablePath, Path backup) throws IOException {
+        Path target = Paths.get(tablePath);
+        if (Files.exists(target)) {
+            Files.delete(target);
+        }
+        Files.move(backup, target);
+    }
 
     public static void main(String[] args) {
         try {
@@ -622,36 +842,59 @@ public class DataRepositoryImpl implements DataRepository {
 
             // Создаем БД и таблицу
             repo.createDatabaseFile(dbFile, "TestDB");
-            List<String> schema = Arrays.asList("int", "str_20", "int"); // ID, Name(10 chars), Age
+            List<String> schema = Arrays.asList("int", "str_20", "int"); // ID, Name(20), Age
             repo.createTableFile(tableFile, "users", schema);
             repo.addTableReference(dbFile, tableFile);
 
-            // Добавляем записи
-            System.out.println("Adding records:");
-            repo.addRecord(tableFile, Arrays.asList(1, "Alice", 25));
-            repo.addRecord(tableFile, Arrays.asList(2, "Bob", 30));
-            repo.addRecord(tableFile, Arrays.asList(3, "Charlie", 35));
-            repo.addRecord(tableFile, Arrays.asList(4, "Dima", 100));
-            repo.addRecord(tableFile, Arrays.asList(5, "Egor", 3));
-            repo.addRecord(tableFile, Arrays.asList(6, "Gleb", 14));
-
-
-            // Читаем записи
-            System.out.println("\nReading records:");
-            for (int i = 0; i < 6; i++) {
-                List<Object> record = repo.readRecord(tableFile, i);
-                System.out.printf("Record %d: %s%n", i, record);
+            // Добавляем 100 записей
+            System.out.println("Adding 100 records:");
+            for (int i = 1; i <= 100; i++) {
+                String name = "User_" + i;
+                repo.addRecord(tableFile, Arrays.asList(i, name, 20 + (i % 10)));
+                if (i % 10 == 0) {
+                    System.out.println("Added " + i + " records...");
+                }
             }
 
-            // Проверяем счетчик записей
+            // Читаем все записи (например, первые 100)
+            System.out.println("\nReading first 10 records:");
+            printAllRecords(repo, tableFile, 100);
+
+            // Удаляем несколько записей для проверки
+            System.out.println("\nDeleting record at index 0 (User_1):");
+            repo.deleteRecord(tableFile, 0);
+
+            System.out.println("\nDeleting record at index 50 (User_51):");
+            repo.deleteRecord(tableFile, 50);
+
+            // Проверяем оставшиеся записи
+            System.out.println("\nRemaining records (first 10):");
+            printAllRecords(repo, tableFile, 100);
+
+            // Проверяем общее количество записей
             try (RandomAccessFile file = new RandomAccessFile(tableFile, "r")) {
                 file.seek(50);
-                System.out.println("\nTotal records: " + file.readInt());
+                int recordCount = file.readInt();
+                System.out.println("\nTotal records after deletion: " + recordCount);
             }
 
         } catch (Exception e) {
+            System.err.println("❌ An error occurred:");
             e.printStackTrace();
         }
     }
 
+    private static void printAllRecords(DataRepositoryImpl repo, String tableFile, int limit) throws IOException {
+        try (RandomAccessFile file = new RandomAccessFile(tableFile, "r")) {
+            file.seek(50);
+            int recordCount = file.readInt();
+
+            int countToPrint = Math.min(limit, recordCount);
+            for (int i = 0; i < countToPrint; i++) {
+                List<Object> record = repo.readRecord(tableFile, i);
+                System.out.printf("Record %d: %s%n", i, record);
+            }
+        }
+    }
 }
+
