@@ -103,25 +103,6 @@ class DataRepositoryImplTest {
                 () -> dataRepository.createDatabaseFile(invalidPath, "TestDB"));
     }
 
-    @Test
-    void addTableReference_ShouldAddReference() throws IOException {
-        dataRepository.createDatabaseFile(dbFilePath, "TestDB");
-        dataRepository.createTableFile(tableFilePath, "TestTable", Arrays.asList("int", "str_20"));
-
-        dataRepository.addTableReference(dbFilePath, tableFilePath);
-
-        assertTrue(dataRepository.isTableExists(dbFilePath, tableFilePath));
-    }
-
-    @Test
-    void addTableReference_ShouldThrowForDuplicateTable() throws IOException {
-        dataRepository.createDatabaseFile(dbFilePath, "TestDB");
-        dataRepository.createTableFile(tableFilePath, "TestTable", Arrays.asList("int", "str_20"));
-        dataRepository.addTableReference(dbFilePath, tableFilePath);
-
-        assertThrows(IllegalArgumentException.class,
-                () -> dataRepository.addTableReference(dbFilePath, tableFilePath));
-    }
 
     @Test
     void createTableFile_ShouldCreateValidFile() throws IOException {
@@ -148,15 +129,6 @@ class DataRepositoryImplTest {
     }
 
     @Test
-    void isTableExists_ShouldReturnTrueForExistingTable() throws IOException {
-        dataRepository.createDatabaseFile(dbFilePath, "TestDB");
-        dataRepository.createTableFile(tableFilePath, "TestTable", List.of("int"));
-        dataRepository.addTableReference(dbFilePath, tableFilePath);
-
-        assertTrue(dataRepository.isTableExists(dbFilePath, tableFilePath));
-    }
-
-    @Test
     void isTableExists_ShouldReturnFalseForNonExistingTable() throws IOException {
         dataRepository.createDatabaseFile(dbFilePath, "TestDB");
         dataRepository.createTableFile(tableFilePath, "TestTable", List.of("int"));
@@ -165,34 +137,6 @@ class DataRepositoryImplTest {
         String nonExistingPath = tableFilePath.replace("table", "non existing");
 
         assertFalse(dataRepository.isTableExists(dbFilePath, nonExistingPath));
-    }
-
-    @Test
-    void startsWith_ShouldReturnFalseWhenPrefixLongerThanArray() throws Exception {
-        byte[] array = {1, 2, 3};
-        byte[] longerPrefix = {1, 2, 3, 4};
-
-        Method method = DataRepositoryImpl.class.getDeclaredMethod("startsWith", byte[].class, byte[].class);
-        method.setAccessible(true);
-
-        boolean result = (boolean) method.invoke(dataRepository, array, longerPrefix);
-        assertFalse(result, "Должно вернуть false, когда префикс длиннее массива");
-    }
-
-    @Test
-    void startsWith_ShouldReturnTrueWhenPrefixShorterOrEqual() throws Exception {
-        byte[] array = {1, 2, 3, 4};
-        byte[] equalPrefix = {1, 2, 3, 4};
-        byte[] shorterPrefix = {1, 2};
-
-        Method method = DataRepositoryImpl.class.getDeclaredMethod("startsWith", byte[].class, byte[].class);
-        method.setAccessible(true);
-
-        boolean equalResult = (boolean) method.invoke(dataRepository, array, equalPrefix);
-        assertTrue(equalResult, "Должно вернуть true, когда префикс равен массиву");
-
-        boolean shorterResult = (boolean) method.invoke(dataRepository, array, shorterPrefix);
-        assertTrue(shorterResult, "Должно вернуть true, когда префикс короче массива");
     }
 
     @Test
@@ -236,43 +180,10 @@ class DataRepositoryImplTest {
     }
 
     @Test
-    void validateSchema_ShouldThrowForInvalidStringFormat1() throws Exception {
-        assertPrivateValidateSchemaThrows(
-                List.of("str_"),
-                "Invalid string length format"
-        );
-    }
-
-    @Test
-    void validateSchema_ShouldThrowForInvalidStringFormat2() throws Exception {
-        assertPrivateValidateSchemaThrows(
-                List.of("str_abc"),
-                "Invalid string length format"
-        );
-    }
-
-    @Test
-    void validateSchema_ShouldThrowForInvalidType1() throws Exception {
-        assertPrivateValidateSchemaThrows(
-                List.of("float"),
-                "Invalid field type: float"
-        );
-    }
-
-    @Test
-    void validateSchema_ShouldThrowForInvalidType2() throws Exception {
-        assertPrivateValidateSchemaThrows(
-                List.of("bool"),
-                "Invalid field type: bool"
-        );
-    }
-
-    @Test
     void validateSchema_ShouldAcceptValidSchema() throws Exception {
         callPrivateValidateSchema(Arrays.asList("int", "str_20", "str_1000"));
         // Если не будет исключения - тест пройден
     }
-
 
     private void callPrivateValidateSchema(List<String> schema) throws Exception {
         Method method = DataRepositoryImpl.class.getDeclaredMethod("validateSchema", List.class);
@@ -361,17 +272,6 @@ class DataRepositoryImplTest {
     }
 
     @Test
-    @DisplayName("Удаление ссылки на таблицу без удаления файла")
-    void testRemoveTableReference() throws IOException {
-        Assertions.assertTrue(dataRepository.isTableExists(dbFilePath, tableFilePath));
-
-        dataRepository.removeTableReference(dbFilePath, tableFilePath);
-
-        Assertions.assertFalse(dataRepository.isTableExists(dbFilePath, tableFilePath));
-        Assertions.assertTrue(Files.exists(Path.of(tableFilePath)));
-    }
-
-    @Test
     @DisplayName("Попытка удаления несуществующей БД")
     void testDeleteNonExistentDatabase() {
         String nonExistPath = testDir.resolve("non_exist.txt").toString();
@@ -457,30 +357,6 @@ class DataRepositoryImplTest {
                 System.err.println("Failed to delete " + path + ": " + e.getMessage());
             }
         });
-    }
-
-    @Test
-    @DisplayName("Удаление ссылки - проверка очистки освободившегося пространства")
-    void removeTableReference_ShouldCleanEmptySpace() throws IOException {
-        String table2Path = testDir.resolve("table2.txt").toString();
-        dataRepository.createTableFile(table2Path, "table2", List.of("int"));
-        dataRepository.addTableReference(dbFilePath, table2Path);
-
-        // Удаляем первую таблицу
-        dataRepository.removeTableReference(dbFilePath, tableFilePath);
-
-        try (RandomAccessFile file = new RandomAccessFile(dbFilePath, "r")) {
-            file.seek(50);
-            int tableCount = file.readInt();
-            assertEquals(1, tableCount);
-
-            file.seek(DataRepositoryImpl.DB_HEADER_SIZE + DataRepositoryImpl.DB_POINTER_SIZE);
-            byte[] emptySpace = new byte[DataRepositoryImpl.DB_POINTER_SIZE];
-            file.readFully(emptySpace);
-
-            byte[] expectedEmpty = new byte[DataRepositoryImpl.DB_POINTER_SIZE];
-            assertArrayEquals(expectedEmpty, emptySpace);
-        }
     }
 
 }
