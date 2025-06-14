@@ -16,17 +16,18 @@ import java.util.stream.Collectors;
 public class DataRepositoryImpl implements DataRepository {
 
     /** Размер заголовка файла базы данных (50 байт для имени + 4 байта для количества таблиц) */
-    public static final int DB_HEADER_SIZE = 50 + 4;
+    private static final int DB_HEADER_SIZE = 50 + 4;
     /** Размер указателя на таблицу в файле базы данных */
     public static final int DB_POINTER_SIZE = 100;
     /** Максимальный размер файла таблицы */
     private static final int TABLE_MAX_SIZE = 65536;
-    /** Размер заголовка файла таблицы (50 байт для имени + 4 байта для количества записей + 100 байт для схемы таблицы + 100 байт для указателя) */
+    /** Размер заголовка файла таблицы (50 байт для имени + 4 байта для количества записей +
+     * 100 байт для схемы таблицы + 100 байт для указателя) */
     private static final int TABLE_HEADER_SIZE = 50 + 4 + 100 + 100;
     /** Размер указателя на следующую часть таблицы */
     private static final int TABLE_POINTER_SIZE = 100;
     /** Размер блока схемы таблицы в заголовке */
-    public static final int TABLE_SCHEMA_SIZE = 100;
+    private static final int TABLE_SCHEMA_SIZE = 100;
     /** Максимальное количество полей в схеме */
     private static final int MAX_SCHEMA_FIELDS = 20;
     /** Максимально допустимая длина строкового поля в таблице (в символах).*/
@@ -75,18 +76,14 @@ public class DataRepositoryImpl implements DataRepository {
         validateTxtExtension(dbFilePath);
         validateTxtExtension(tableFilePath);
 
-        Path dbPath = Paths.get(dbFilePath);
-        Path tablePath = Paths.get(tableFilePath).normalize();
+        Path dbPath = Paths.get(dbFilePath).toAbsolutePath().normalize();
+        Path tablePath = Paths.get(tableFilePath).toAbsolutePath().normalize();
 
         if (!Files.exists(dbPath)) {
-            throw new FileNotFoundException("Database file not found");
+            throw new FileNotFoundException("Database file not found: " + dbPath);
         }
         if (!Files.exists(tablePath)) {
-            throw new FileNotFoundException("Table file not found");
-        }
-
-        if (isTableExists(dbFilePath, tableFilePath)) { // Медленно для больших БД (читает все ссылки)
-            throw new IllegalArgumentException("Table reference already exists in database: " + tableFilePath);
+            throw new FileNotFoundException("Table file not found: " + tablePath);
         }
 
         try (RandomAccessFile file = new RandomAccessFile(dbFilePath, "rw")) {
@@ -102,11 +99,15 @@ public class DataRepositoryImpl implements DataRepository {
                 throw new IllegalStateException("Database cannot contain more tables");
             }
 
-            byte[] pathBytes = tablePath.toString().getBytes(StandardCharsets.UTF_8);
+            String pathToStore = tablePath.toString();
+            byte[] pathBytes = pathToStore.getBytes(StandardCharsets.UTF_8);
+
             if (pathBytes.length > DB_POINTER_SIZE) {
                 throw new IllegalArgumentException("Table path exceeds maximum length");
             }
-
+            if (isTableExists(dbFilePath, pathToStore)) {
+                throw new IllegalArgumentException("Table reference already exists in database: " + pathToStore);
+            }
             file.seek(50);
             file.writeInt(tableCount + 1);
 
@@ -129,14 +130,21 @@ public class DataRepositoryImpl implements DataRepository {
     public boolean isTableExists(String dbFilePath, String tableFilePath) throws IOException {
         validateTxtExtension(dbFilePath);
 
-        if (!Files.exists(Paths.get(dbFilePath))) {
-            throw new FileNotFoundException("Database file not found");
+        Path dbPath = Paths.get(dbFilePath).toAbsolutePath().normalize();
+        if (!Files.exists(dbPath)) {
+            throw new FileNotFoundException("Database file not found: " + dbPath);
         }
 
-        Path searchPath = Paths.get(tableFilePath).normalize();
-        byte[] searchBytes = searchPath.toString().getBytes(StandardCharsets.UTF_8);
-        try (RandomAccessFile file = new RandomAccessFile(dbFilePath, "r")) {
-            if (file.length() < 54) { // 50 (имя) + 4 (количество таблиц)
+        Path searchPath = Paths.get(tableFilePath);
+        if (!searchPath.isAbsolute()) {
+            searchPath = dbPath.getParent().resolve(tableFilePath).normalize();
+        } else {
+            searchPath = searchPath.normalize();
+        }
+
+        String searchPathStr = searchPath.toString();
+        try (RandomAccessFile file = new RandomAccessFile(dbPath.toFile(), "r")) {
+            if (file.length() < DB_HEADER_SIZE) {
                 throw new IOException("Corrupted database file");
             }
 
@@ -148,28 +156,19 @@ public class DataRepositoryImpl implements DataRepository {
                 throw new IOException("Corrupted database file: invalid table count");
             }
 
-            byte[] allPointers = new byte[tableCount * DB_POINTER_SIZE];
             file.seek(DB_HEADER_SIZE);
+            byte[] pointerBuffer = new byte[DB_POINTER_SIZE];
+
             for (int i = 0; i < tableCount; i++) {
-                int offset = i * DB_POINTER_SIZE;
-                if (startsWith(allPointers, offset, searchBytes)) {
+                file.readFully(pointerBuffer);
+                String storedPath = new String(pointerBuffer, StandardCharsets.UTF_8).trim();
+
+                if (searchPathStr.equals(storedPath)) {
                     return true;
                 }
             }
         }
         return false;
-    }
-
-    /**
-     * Проверяет, начинается ли массив байтов с указанной последовательности
-     */
-    private boolean startsWith(byte[] dbEntries, int offset, byte[] searchPath) {
-        int length = 0;
-        while (length < DB_POINTER_SIZE && dbEntries[offset + length] != 0) {
-            length++;
-        }
-        return Arrays.mismatch(dbEntries, offset, offset + length,
-                searchPath, 0, searchPath.length) == -1;
     }
 
     /**
@@ -196,27 +195,22 @@ public class DataRepositoryImpl implements DataRepository {
         }
 
         try (RandomAccessFile file = new RandomAccessFile(tableFilePath, "rw")) {
-            //Создаем файл макс размера
             byte[] buffer = new byte[TABLE_MAX_SIZE];
             file.write(buffer);
             file.seek(0);
 
-            // Название таблицы
             byte[] nameBytes = tableName.getBytes(StandardCharsets.UTF_8);
             byte[] paddedName = new byte[50];
             System.arraycopy(nameBytes, 0, paddedName, 0, Math.min(nameBytes.length, 50));
             file.write(paddedName);
 
-            // Количество записей (0 при создании)
             file.writeInt(0);
 
-            // Записываем схему
             byte[] schemaBytes = encodeSchema(schema);
             byte[] paddedSchema = new byte[TABLE_SCHEMA_SIZE];
             System.arraycopy(schemaBytes, 0, paddedSchema, 0, Math.min(schemaBytes.length, TABLE_SCHEMA_SIZE));
             file.write(paddedSchema);
 
-            // Указатель на следующую часть (пустой)
             byte[] emptyPointer = new byte[TABLE_POINTER_SIZE];
             file.write(emptyPointer);
         }
@@ -833,68 +827,4 @@ public class DataRepositoryImpl implements DataRepository {
         }
         Files.move(backup, target);
     }
-
-    public static void main(String[] args) {
-        try {
-            DataRepositoryImpl repo = new DataRepositoryImpl();
-            String dbFile = "C:\\BDTest\\db.txt";
-            String tableFile = "C:\\BDTest\\users.txt";
-
-            // Создаем БД и таблицу
-            repo.createDatabaseFile(dbFile, "TestDB");
-            List<String> schema = Arrays.asList("int", "str_20", "int"); // ID, Name(20), Age
-            repo.createTableFile(tableFile, "users", schema);
-            repo.addTableReference(dbFile, tableFile);
-
-            // Добавляем 100 записей
-            System.out.println("Adding 100 records:");
-            for (int i = 1; i <= 100; i++) {
-                String name = "User_" + i;
-                repo.addRecord(tableFile, Arrays.asList(i, name, 20 + (i % 10)));
-                if (i % 10 == 0) {
-                    System.out.println("Added " + i + " records...");
-                }
-            }
-
-            // Читаем все записи (например, первые 100)
-            System.out.println("\nReading first 10 records:");
-            printAllRecords(repo, tableFile, 100);
-
-            // Удаляем несколько записей для проверки
-            System.out.println("\nDeleting record at index 0 (User_1):");
-            repo.deleteRecord(tableFile, 0);
-
-            System.out.println("\nDeleting record at index 50 (User_51):");
-            repo.deleteRecord(tableFile, 50);
-
-            // Проверяем оставшиеся записи
-            System.out.println("\nRemaining records (first 10):");
-            printAllRecords(repo, tableFile, 100);
-
-            // Проверяем общее количество записей
-            try (RandomAccessFile file = new RandomAccessFile(tableFile, "r")) {
-                file.seek(50);
-                int recordCount = file.readInt();
-                System.out.println("\nTotal records after deletion: " + recordCount);
-            }
-
-        } catch (Exception e) {
-            System.err.println("❌ An error occurred:");
-            e.printStackTrace();
-        }
-    }
-
-    private static void printAllRecords(DataRepositoryImpl repo, String tableFile, int limit) throws IOException {
-        try (RandomAccessFile file = new RandomAccessFile(tableFile, "r")) {
-            file.seek(50);
-            int recordCount = file.readInt();
-
-            int countToPrint = Math.min(limit, recordCount);
-            for (int i = 0; i < countToPrint; i++) {
-                List<Object> record = repo.readRecord(tableFile, i);
-                System.out.printf("Record %d: %s%n", i, record);
-            }
-        }
-    }
 }
-

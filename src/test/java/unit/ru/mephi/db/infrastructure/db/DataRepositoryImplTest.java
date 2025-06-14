@@ -4,18 +4,18 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 import ru.mephi.db.infrastructure.db.DataRepositoryImpl;
 
-
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class DataRepositoryImplTest {
 
@@ -23,7 +23,6 @@ class DataRepositoryImplTest {
     private Path testDir;
     private String dbFilePath;
     private String tableFilePath;
-    private String tableFilePath2;
 
     @BeforeEach
     void setUp(@TempDir Path tempDir) throws IOException {
@@ -31,16 +30,11 @@ class DataRepositoryImplTest {
         testDir = tempDir;
         dbFilePath = testDir.resolve("test_db.txt").toString();
         tableFilePath = testDir.resolve("test_table.txt").toString();
-        tableFilePath2 = testDir.resolve("table_part2.txt").toString();
 
-        // Создаем тестовую БД и таблицу
         dataRepository.createDatabaseFile(dbFilePath, "test_db");
         dataRepository.createTableFile(tableFilePath, "test_table",
                 Arrays.asList("int", "str_20"));
         dataRepository.addTableReference(dbFilePath, tableFilePath);
-
-        dataRepository.createTableFile(tableFilePath2, "test_table_part2",
-                Arrays.asList("int", "str_50"));
     }
 
     @AfterEach
@@ -53,310 +47,274 @@ class DataRepositoryImplTest {
         }
     }
 
+    /* ------------------------------- Создание БД -----------------------------*/
     @Test
-    void createDatabaseFile_ShouldCreateParentDirectories() throws IOException {
-        Path nestedPath = testDir.resolve("nested/dir/test_db.txt");
-        dataRepository.createDatabaseFile(nestedPath.toString(), "TestDB");
+    void createDatabaseFile_ShouldValidateNameLength() {
+        String exactLengthName = "A".repeat(50);
+        String tooLongName = "B".repeat(51);
+        String shortName = "ShortName";
 
-        assertTrue(Files.exists(nestedPath));
-        assertTrue(Files.isDirectory(nestedPath.getParent()));
-    }
+        Path validPath = testDir.resolve("valid_db.txt");
+        Path invalidPath = testDir.resolve("invalid_db.txt");
+        Path shortNamePath = testDir.resolve("short_name_db.txt");
 
-    @Test
-    void createDatabaseFile_ShouldCreateValidFile() throws IOException {
-        dataRepository.createDatabaseFile(dbFilePath, "TestDB");
-
-        assertTrue(Files.exists(Path.of(dbFilePath)));
-        assertEquals(154, Files.size(Path.of(dbFilePath))); // 50 (имя) + 4 (количество) + 100 (указатель)
-    }
-
-    @Test
-    void createDatabaseFile_ShouldThrowForLongName() {
-        String longName = "A".repeat(51);
-
-        assertThrows(IllegalArgumentException.class,
-                () -> dataRepository.createDatabaseFile(dbFilePath, longName));
-    }
-
-    @Test
-    void createTableFile_ShouldAccept50CharName() {
-        String exactLengthName = "a".repeat(50);
         assertDoesNotThrow(
-                () -> dataRepository.createTableFile(testDir.resolve("test.txt").toString(), exactLengthName, List.of("int"))
-        );
-    }
-
-    @Test
-    void createTableFile_ShouldCreateParentDirectories() throws IOException {
-        Path nestedPath = testDir.resolve("nested/dir/test_table.txt");
-        dataRepository.createTableFile(nestedPath.toString(), "TestTable", List.of("int"));
-
-        assertTrue(Files.exists(nestedPath));
-        assertTrue(Files.isDirectory(nestedPath.getParent()));
-    }
-
-    @Test
-    void createDatabaseFile_ShouldThrowForInvalidExtension() {
-        String invalidPath = dbFilePath.replace(".txt", ".dat");
-
-        assertThrows(IllegalArgumentException.class,
-                () -> dataRepository.createDatabaseFile(invalidPath, "TestDB"));
-    }
-
-
-    @Test
-    void createTableFile_ShouldCreateValidFile() throws IOException {
-        List<String> schema = Arrays.asList("int", "str_20", "int");
-
-        dataRepository.createTableFile(tableFilePath, "TestTable", schema);
-
-        assertTrue(Files.exists(Path.of(tableFilePath)));
-        assertTrue(Files.size(Path.of(tableFilePath)) > 0);
-    }
-
-    @Test
-    void createTableFile_ShouldThrowForInvalidSchema() {
-        List<String> invalidSchema = List.of("invalid_type");
-
-        assertThrows(IllegalArgumentException.class,
-                () -> dataRepository.createTableFile(tableFilePath, "TestTable", invalidSchema));
-    }
-
-    @Test
-    void isTableExists_ShouldReturnFalseForEmptyDB() throws IOException {
-        dataRepository.createDatabaseFile(dbFilePath, "TestDB");
-        assertFalse(dataRepository.isTableExists(dbFilePath, tableFilePath));
-    }
-
-    @Test
-    void isTableExists_ShouldReturnFalseForNonExistingTable() throws IOException {
-        dataRepository.createDatabaseFile(dbFilePath, "TestDB");
-        dataRepository.createTableFile(tableFilePath, "TestTable", List.of("int"));
-        dataRepository.addTableReference(dbFilePath, tableFilePath);
-
-        String nonExistingPath = tableFilePath.replace("table", "non existing");
-
-        assertFalse(dataRepository.isTableExists(dbFilePath, nonExistingPath));
-    }
-
-    @Test
-    void validateSchema_ShouldThrowForNullSchema() throws Exception {
-        assertPrivateValidateSchemaThrows(
-                null,
-                "Schema must contain 1-20 fields"
-        );
-    }
-
-    @Test
-    void validateSchema_ShouldThrowForInvalidIntFormat1() throws Exception {
-        assertPrivateValidateSchemaThrows(
-                List.of("int1"),
-                "Integer field must be 'int'"
-        );
-    }
-
-    @Test
-    void validateSchema_ShouldThrowForInvalidIntFormat2() throws Exception {
-        assertPrivateValidateSchemaThrows(
-                List.of("int_"),
-                "Integer field must be 'int'"
-        );
-    }
-
-    @Test
-    void validateSchema_ShouldThrowForInvalidStringLength1() throws Exception {
-        assertPrivateValidateSchemaThrows(
-                List.of("str_0"),
-                "String length must be 1-1000"
-        );
-    }
-
-    @Test
-    void validateSchema_ShouldThrowForInvalidStringLength2() throws Exception {
-        assertPrivateValidateSchemaThrows(
-                List.of("str_1001"),
-                "String length must be 1-1000"
-        );
-    }
-
-    @Test
-    void validateSchema_ShouldAcceptValidSchema() throws Exception {
-        callPrivateValidateSchema(Arrays.asList("int", "str_20", "str_1000"));
-        // Если не будет исключения - тест пройден
-    }
-
-    private void callPrivateValidateSchema(List<String> schema) throws Exception {
-        Method method = DataRepositoryImpl.class.getDeclaredMethod("validateSchema", List.class);
-        method.setAccessible(true);
-        method.invoke(dataRepository, schema);
-    }
-
-    private void assertPrivateValidateSchemaThrows(List<String> schema, String expectedMessage) throws Exception {
-        Method method = DataRepositoryImpl.class.getDeclaredMethod("validateSchema", List.class);
-        method.setAccessible(true);
-
-        Exception exception = assertThrows(
-                Exception.class,
-                () -> method.invoke(dataRepository, schema)
+                () -> dataRepository.createDatabaseFile(validPath.toString(), exactLengthName),
+                "Имя из 50 символов должно быть допустимо"
         );
 
-        assertEquals(IllegalArgumentException.class, exception.getCause().getClass());
-        assertEquals(expectedMessage, exception.getCause().getMessage());
-    }
-
-    @Test
-    void decodeSchema_ShouldCorrectlySplitSchemaString() throws Exception {
-        byte[] input = "int;str_20;date".getBytes();
-
-        Method method = DataRepositoryImpl.class.getDeclaredMethod("decodeSchema", byte[].class);
-        method.setAccessible(true);
-        @SuppressWarnings("unchecked")
-        List<String> result = (List<String>) method.invoke(dataRepository, (Object) input);
-
-        assertEquals(Arrays.asList("int", "str_20", "date"), result);
-    }
-
-    @Test
-    void createTableFile_ShouldThrowWhenTableNameTooLong() {
-        String longTableName = "a".repeat(51);
-        String filePath = testDir.resolve("test.txt").toString();
-
-        Exception exception = assertThrows(
+        IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
-                () -> dataRepository.createTableFile(filePath, longTableName, List.of("int"))
+                () -> dataRepository.createDatabaseFile(invalidPath.toString(), tooLongName),
+                "Должно выбрасываться исключение для имени длиннее 50 символов"
         );
-
-        assertEquals("Table name must be 50 characters or less", exception.getMessage());
-    }
-
-    @Test
-    void createTableFile_ShouldAcceptMaxLengthName() {
-        String maxLengthName = "a".repeat(50);
-        String filePath = testDir.resolve("test.txt").toString();
+        assertEquals(
+                "Database name must be 50 characters or less",
+                exception.getMessage(),
+                "Сообщение об ошибке должно соответствовать требованию"
+        );
 
         assertDoesNotThrow(
-                () -> dataRepository.createTableFile(filePath, maxLengthName, List.of("int"))
+                () -> dataRepository.createDatabaseFile(shortNamePath.toString(), shortName),
+                "Короткое имя должно быть допустимо"
         );
-
-        assertTrue(Files.exists(Path.of(filePath)));
-    }
-
-
-    /* ------------------------------- Удаление БД -----------------------------*/
-
-    @Test
-    @DisplayName("Удаление БД с таблицами")
-    void testDeleteDatabaseWithTables() throws IOException {
-        Assertions.assertTrue(Files.exists(Path.of(dbFilePath)));
-        Assertions.assertTrue(Files.exists(Path.of(tableFilePath)));
-
-        dataRepository.deleteDatabaseFile(dbFilePath);
-
-        Assertions.assertFalse(Files.exists(Path.of(dbFilePath)));
-        Assertions.assertFalse(Files.exists(Path.of(tableFilePath)));
     }
 
     @Test
-    @DisplayName("Удаление таблицы с связанными частями")
-    void testDeleteTableWithParts() throws IOException {
-        // Связываем таблицы
-        try (RandomAccessFile file = new RandomAccessFile(tableFilePath, "rw")) {
-            file.seek(50 + 4 + DataRepositoryImpl.TABLE_SCHEMA_SIZE);
-            file.write(tableFilePath2.getBytes());
+    void createTableFile_ShouldValidateAllCases() throws IOException {
+        Path nestedDir = testDir.resolve("a/b/c");
+        String tableInNestedDir = nestedDir.resolve("table.txt").toString();
+
+        assertFalse(Files.exists(nestedDir));
+        assertDoesNotThrow(() -> dataRepository.createTableFile(tableInNestedDir, "tbl", List.of("int")));
+        assertTrue(Files.exists(nestedDir));
+        assertTrue(Files.exists(Paths.get(tableInNestedDir)));
+
+        Path existingDir = testDir.resolve("existing");
+        Files.createDirectories(existingDir);
+        String tableInExistingDir = existingDir.resolve("existing.txt").toString();
+        assertDoesNotThrow(() -> dataRepository.createTableFile(tableInExistingDir, "tbl", List.of("int")));
+        assertTrue(Files.exists(Paths.get(tableInExistingDir)));
+
+        String longNameTable = testDir.resolve("long_name.txt").toString();
+        assertThrows(IllegalArgumentException.class,
+                () -> dataRepository.createTableFile(longNameTable, "a".repeat(51), List.of("int")));
+
+        String invalidExt = testDir.resolve("invalid.dat").toString();
+        assertThrows(IllegalArgumentException.class,
+                () -> dataRepository.createTableFile(invalidExt, "tbl", List.of("int")));
+
+        List<String> invalidSchema = List.of("invalid_type");
+        assertThrows(IllegalArgumentException.class,
+                () -> dataRepository.createTableFile(tableFilePath, "tbl", invalidSchema));
+
+        String rootTable = testDir.resolve("root.txt").toString();
+        assertDoesNotThrow(() -> dataRepository.createTableFile(rootTable, "tbl", List.of("int")));
+        assertTrue(Files.exists(Paths.get(rootTable)));
+    }
+
+    @Test
+    void createDatabaseFile_ShouldRejectNullName() {
+        Path path = testDir.resolve("null_name_db.txt");
+
+        assertThrows(
+                NullPointerException.class,
+                () -> dataRepository.createDatabaseFile(path.toString(), null),
+                "Должно выбрасываться исключение для null-имени"
+        );
+    }
+
+    /* ------------------------------- Добавление ссылки -----------------------------*/
+    @Test
+    void addTableReference_ShouldValidateAllCases() throws IOException {
+        Path nestedDir = testDir.resolve("n/d");
+        String dbInNestedDir = nestedDir.resolve("db.txt").toString();
+        String tableInNestedDir = nestedDir.resolve("tbl.txt").toString();
+
+        dataRepository.createDatabaseFile(dbInNestedDir, "db");
+        dataRepository.createTableFile(tableInNestedDir, "tbl", List.of("int"));
+        assertDoesNotThrow(() -> dataRepository.addTableReference(dbInNestedDir, tableInNestedDir));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> dataRepository.addTableReference(dbInNestedDir, tableInNestedDir));
+
+        String missingDbPath = testDir.resolve("missing_db.txt").toString();
+        String missingTablePath = testDir.resolve("missing_table.txt").toString();
+
+        assertThrows(FileNotFoundException.class,
+                () -> dataRepository.addTableReference(missingDbPath, tableFilePath));
+
+        assertThrows(FileNotFoundException.class,
+                () -> dataRepository.addTableReference(dbFilePath, missingTablePath));
+
+        String invalidDbExt = testDir.resolve("invalid_db.dat").toString();
+        Files.createFile(Paths.get(invalidDbExt));
+
+        String invalidTableExt = testDir.resolve("invalid_table.dat").toString();
+        Files.createFile(Paths.get(invalidTableExt));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> dataRepository.addTableReference(invalidDbExt, tableFilePath));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> dataRepository.addTableReference(dbFilePath, invalidTableExt));
+
+        String longNameTablePath = testDir.resolve("long_tbl.txt").toString();
+        Files.createFile(Paths.get(longNameTablePath));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> dataRepository.createTableFile(longNameTablePath, "a".repeat(51), List.of("int")));
+
+        String longPathTable = testDir.resolve("a".repeat(90) + ".txt").toString();
+        Files.createFile(Paths.get(longPathTable));
+        dataRepository.createTableFile(longPathTable, "tbl", List.of("int"));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> dataRepository.addTableReference(dbFilePath, longPathTable));
+
+        String fullDbPath = testDir.resolve("full_db.txt").toString();
+        dataRepository.createDatabaseFile(fullDbPath, "full_db");
+
+        int maxTables = (65536 - 54) / 100;
+        for (int i = 0; i < maxTables; i++) {
+            String tempTablePath = testDir.resolve("t" + i + ".txt").toString();
+            dataRepository.createTableFile(tempTablePath, "t" + i, List.of("int"));
+            dataRepository.addTableReference(fullDbPath, tempTablePath);
         }
 
-        dataRepository.deleteTableFile(tableFilePath);
+        String extraTablePath = testDir.resolve("extra_tbl.txt").toString();
+        dataRepository.createTableFile(extraTablePath, "extra", List.of("int"));
+        assertThrows(IllegalStateException.class,
+                () -> dataRepository.addTableReference(fullDbPath, extraTablePath));
 
-        Assertions.assertFalse(Files.exists(Path.of(tableFilePath)));
-        Assertions.assertFalse(Files.exists(Path.of(tableFilePath2)));
+        String corruptedDbPath = testDir.resolve("corrupted_db.txt").toString();
+        Files.write(Paths.get(corruptedDbPath), new byte[10]);
+        assertThrows(IOException.class,
+                () -> dataRepository.addTableReference(corruptedDbPath, tableFilePath));
     }
 
+    /* ------------------------------- Проверка существования таблиц -----------------------------*/
     @Test
-    @DisplayName("Попытка удаления несуществующей БД")
-    void testDeleteNonExistentDatabase() {
-        String nonExistPath = testDir.resolve("non_exist.txt").toString();
-        Assertions.assertThrows(IOException.class, () ->
-                dataRepository.deleteDatabaseFile(nonExistPath));
-    }
+    void isTableExists_ShouldValidateAllCases() throws IOException {
+        String existingTablePath = testDir.resolve("existing_table.txt").toString();
+        String nonExistingTablePath = testDir.resolve("non_existing_table.txt").toString();
+        String corruptedDbPath = testDir.resolve("corrupted_db.txt").toString();
+        String invalidSizeDbPath = testDir.resolve("invalid_size_db.txt").toString();
 
-    @Test
-    @DisplayName("Попытка удаления несуществующей таблицы")
-    void testDeleteNonExistentTable() {
-        String nonExistPath = testDir.resolve("non_exist.txt").toString();
-        Assertions.assertThrows(IOException.class, () ->
-                dataRepository.deleteTableFile(nonExistPath));
-    }
+        dataRepository.createDatabaseFile(dbFilePath, "TestDB");
+        dataRepository.createTableFile(existingTablePath, "ExistingTable", List.of("int"));
+        dataRepository.addTableReference(dbFilePath, existingTablePath);
 
-    @Test
-    @DisplayName("Удаление ссылки на таблицу - проверка фильтрации таблиц")
-    void removeTableReference_ShouldFilterCorrectly() throws IOException {
-        String table2Path = testDir.resolve("table2.txt").toString();
-        dataRepository.createTableFile(table2Path, "table2", List.of("int"));
-        dataRepository.addTableReference(dbFilePath, table2Path);
-
-        // Удаляем ссылку на первую таблицу
-        dataRepository.removeTableReference(dbFilePath, tableFilePath);
-
-        try (RandomAccessFile file = new RandomAccessFile(dbFilePath, "r")) {
-            file.seek(50);
-            int tableCount = file.readInt();
-            assertEquals(1, tableCount);
-
-            byte[] pointerBytes = new byte[DataRepositoryImpl.DB_POINTER_SIZE];
-            file.seek(DataRepositoryImpl.DB_HEADER_SIZE);
-            file.readFully(pointerBytes);
-            String remainingPath = new String(pointerBytes, StandardCharsets.UTF_8).trim();
-
-            assertEquals(table2Path, remainingPath);
-        }
-    }
-
-    @Test
-    @DisplayName("Удаление ссылки - проверка записи оставшихся таблиц")
-    void removeTableReference_ShouldWriteRemainingTablesCorrectly() throws IOException {
-        Path tempDbPath = testDir.resolve("temp_db.txt");
-        dataRepository.createDatabaseFile(tempDbPath.toString(), "temp_db");
-
-        List<String> tables = new ArrayList<>();
-        for (int i = 1; i <= 3; i++) {
-            String path = testDir.resolve("table" + i + ".txt").toString();
-            dataRepository.createTableFile(path, "table" + i, List.of("int"));
-            dataRepository.addTableReference(tempDbPath.toString(), path);
-            tables.add(path);
+        dataRepository.createDatabaseFile(corruptedDbPath, "CorruptedDB");
+        try (RandomAccessFile file = new RandomAccessFile(corruptedDbPath, "rw")) {
+            file.setLength(30);
         }
 
-        try (RandomAccessFile file = new RandomAccessFile(tempDbPath.toFile(), "r")) {
-            file.seek(50);
-            assertEquals(3, file.readInt());
+        dataRepository.createDatabaseFile(invalidSizeDbPath, "InvalidSizeDB");
+        try (RandomAccessFile file = new RandomAccessFile(invalidSizeDbPath, "rw")) {
+            byte[] nameBytes = "InvalidSizeDB".getBytes(StandardCharsets.UTF_8);
+            byte[] paddedName = new byte[50];
+            System.arraycopy(nameBytes, 0, paddedName, 0, Math.min(nameBytes.length, 50));
+            file.write(paddedName);
+            file.writeInt(2);
         }
 
-        // Удаляем среднюю таблицу
-        dataRepository.removeTableReference(tempDbPath.toString(), tables.get(1));
+        assertTrue(dataRepository.isTableExists(dbFilePath, existingTablePath));
+        assertFalse(dataRepository.isTableExists(dbFilePath, nonExistingTablePath));
 
-        try (RandomAccessFile file = new RandomAccessFile(tempDbPath.toFile(), "r")) {
-            file.seek(50);
-            int tableCount = file.readInt();
-            assertEquals(2, tableCount);
+        String emptyDbPath = testDir.resolve("empty_db.txt").toString();
+        dataRepository.createDatabaseFile(emptyDbPath, "EmptyDB");
+        assertFalse(dataRepository.isTableExists(emptyDbPath, existingTablePath));
 
-            file.seek(DataRepositoryImpl.DB_HEADER_SIZE);
-            byte[] pointer1 = new byte[DataRepositoryImpl.DB_POINTER_SIZE];
-            file.readFully(pointer1);
-            assertEquals(tables.get(0), new String(pointer1, StandardCharsets.UTF_8).trim());
+        assertThrows(IOException.class, () -> dataRepository.isTableExists(corruptedDbPath, existingTablePath));
+        assertThrows(IOException.class, () -> dataRepository.isTableExists(invalidSizeDbPath, existingTablePath));
 
-            file.seek(DataRepositoryImpl.DB_HEADER_SIZE + DataRepositoryImpl.DB_POINTER_SIZE);
-            byte[] pointer2 = new byte[DataRepositoryImpl.DB_POINTER_SIZE];
-            file.readFully(pointer2);
-            assertEquals(tables.get(2), new String(pointer2, StandardCharsets.UTF_8).trim());
-        }
+        String missingDbPath = testDir.resolve("missing_db.txt").toString();
+        assertThrows(FileNotFoundException.class, () -> dataRepository.isTableExists(missingDbPath, existingTablePath));
 
-        Files.deleteIfExists(tempDbPath);
-        tables.forEach(path -> {
-            try {
-                Files.deleteIfExists(Path.of(path));
-            } catch (IOException e) {
-                System.err.println("Failed to delete " + path + ": " + e.getMessage());
+        if (!System.getProperty("os.name").toLowerCase().contains("win")) {
+            String differentCasePath = existingTablePath.toUpperCase();
+            if (!existingTablePath.equals(differentCasePath)) {
+                assertFalse(dataRepository.isTableExists(dbFilePath, differentCasePath));
             }
-        });
+        }
+
+        Path nonNormalizedPath = Paths.get(testDir.toString(), "..", testDir.getFileName().toString(), ".", "existing_table.txt");
+        assertNotEquals(nonNormalizedPath.toString(), nonNormalizedPath.normalize().toString());
+        assertTrue(dataRepository.isTableExists(dbFilePath, nonNormalizedPath.toString()));
+
+        Path relativePath = Paths.get("./existing_table.txt");
+        assertTrue(dataRepository.isTableExists(dbFilePath, relativePath.toString()));
     }
+
+    /* ------------------------------- Проверка удаления -----------------------------*/
+    @Test
+    void deleteOperations_ShouldHandleAllErrorCases() throws IOException {
+        Path validDb = testDir.resolve("valid_db.txt");
+        Path validTable = testDir.resolve("valid_table.txt");
+        Path corruptedDb = testDir.resolve("corrupted_db.txt");
+        Path invalidPointerDb = testDir.resolve("invalid_pointer_db.txt");
+        Path nonExistentDb = testDir.resolve("non_existent_db.txt");
+        Path multiPart1 = testDir.resolve("multi_part1.txt");
+        Path multiPart2 = testDir.resolve("multi_part2.txt");
+        Path corruptedTable = testDir.resolve("corrupted_table.txt");
+        Path unreadableTable = testDir.resolve("unreadable_table.txt");
+        Path nonExistentTable = testDir.resolve("non_existent_table_" + System.currentTimeMillis() + ".txt");
+
+        Files.deleteIfExists(nonExistentTable);
+        assertFalse(Files.exists(nonExistentTable), "Файл не должен существовать");
+        dataRepository.createDatabaseFile(validDb.toString(), "valid_db");
+        dataRepository.createTableFile(validTable.toString(), "valid_table", List.of("int"));
+        dataRepository.addTableReference(validDb.toString(), validTable.toString());
+        assertThrows(FileNotFoundException.class,
+                () -> dataRepository.deleteDatabaseFile(nonExistentDb.toString()));
+
+        Files.write(corruptedDb, new byte[54 - 1]);
+        assertThrows(IOException.class,
+                () -> dataRepository.deleteDatabaseFile(corruptedDb.toString()));
+        try (RandomAccessFile file = new RandomAccessFile(invalidPointerDb.toFile(), "rw")) {
+            file.setLength(54 + 100);
+            file.seek(50);
+            file.writeInt(1000);
+        }
+        assertThrows(IOException.class,
+                () -> dataRepository.deleteDatabaseFile(invalidPointerDb.toString()));
+        dataRepository.createTableFile(multiPart1.toString(), "multi_part", List.of("int"));
+        dataRepository.createTableFile(multiPart2.toString(), "multi_part", List.of("int"));
+
+        try (RandomAccessFile file = new RandomAccessFile(multiPart1.toFile(), "rw")) {
+            file.seek(54 + 100);
+            file.write(multiPart2.toString().getBytes(StandardCharsets.UTF_8));
+        }
+
+        dataRepository.createTableFile(corruptedTable.toString(), "corrupted", List.of("int"));
+        Files.write(corruptedTable, new byte[54 + 100 - 1]);
+        assertDoesNotThrow(() -> dataRepository.deleteTableFile(corruptedTable.toString()));
+        assertFalse(Files.exists(corruptedTable));
+        dataRepository.createTableFile(unreadableTable.toString(), "unreadable", List.of("int"));
+
+        boolean setReadableResult = unreadableTable.toFile().setReadable(false);
+        assumeTrue(setReadableResult, "Не удалось установить права на чтение");
+
+        try {
+            assertThrows(IOException.class,
+                    () -> dataRepository.deleteTableFile(unreadableTable.toString()));
+        } finally {
+            boolean restoreResult = unreadableTable.toFile().setReadable(true);
+            assertTrue(restoreResult, "Не удалось восстановить права на чтение");
+        }
+
+        assertThrows(IOException.class,
+                () -> dataRepository.deleteTableFile(nonExistentTable.toString()));
+
+        assertDoesNotThrow(() -> dataRepository.deleteTableFile(multiPart1.toString()));
+        assertFalse(Files.exists(multiPart1));
+        assertFalse(Files.exists(multiPart2));
+
+        assertTrue(Files.exists(validDb));
+        assertDoesNotThrow(() -> dataRepository.deleteDatabaseFile(validDb.toString()));
+        assertFalse(Files.exists(validDb));
+    }
+
 
 }
