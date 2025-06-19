@@ -4,6 +4,7 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 import ru.mephi.db.infrastructure.db.DataRepositoryImpl;
 
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -12,7 +13,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -40,8 +43,16 @@ class DataRepositoryImplTest {
     @AfterEach
     void tearDown() {
         try {
-            Files.deleteIfExists(Path.of(dbFilePath));
-            Files.deleteIfExists(Path.of(tableFilePath));
+            try (Stream<Path> walk = Files.walk(testDir)) {
+                walk.sorted(Comparator.reverseOrder())
+                        .map(Path::toFile)
+                        .forEach(file -> {
+                            boolean deleted = file.delete();
+                            if (!deleted) {
+                                System.err.println("Failed to delete file: " + file.getAbsolutePath());
+                            }
+                        });
+            }
         } catch (IOException e) {
             System.err.println("Cleanup warning: " + e.getMessage());
         }
@@ -249,72 +260,312 @@ class DataRepositoryImplTest {
 
     /* ------------------------------- Проверка удаления -----------------------------*/
     @Test
-    void deleteOperations_ShouldHandleAllErrorCases() throws IOException {
-        Path validDb = testDir.resolve("valid_db.txt");
-        Path validTable = testDir.resolve("valid_table.txt");
-        Path corruptedDb = testDir.resolve("corrupted_db.txt");
-        Path invalidPointerDb = testDir.resolve("invalid_pointer_db.txt");
-        Path nonExistentDb = testDir.resolve("non_existent_db.txt");
-        Path multiPart1 = testDir.resolve("multi_part1.txt");
-        Path multiPart2 = testDir.resolve("multi_part2.txt");
-        Path corruptedTable = testDir.resolve("corrupted_table.txt");
-        Path unreadableTable = testDir.resolve("unreadable_table.txt");
-        Path nonExistentTable = testDir.resolve("non_existent_table_" + System.currentTimeMillis() + ".txt");
+    void deleteDatabaseFile_allScenarios() throws Exception {
+        dataRepository.deleteDatabaseFile(dbFilePath);
 
-        Files.deleteIfExists(nonExistentTable);
-        assertFalse(Files.exists(nonExistentTable), "Файл не должен существовать");
-        dataRepository.createDatabaseFile(validDb.toString(), "valid_db");
-        dataRepository.createTableFile(validTable.toString(), "valid_table", List.of("int"));
-        dataRepository.addTableReference(validDb.toString(), validTable.toString());
+        assertFalse(Files.exists(Paths.get(dbFilePath)));
+        assertFalse(Files.exists(Paths.get(tableFilePath)));
+        dataRepository.createDatabaseFile(dbFilePath, "test_db");
+        dataRepository.createTableFile(tableFilePath, "test_table", List.of("int", "str_20"));
+        dataRepository.addTableReference(dbFilePath, tableFilePath);
+
+        String nonExistentDbPath = testDir.resolve("nonexistent_db.txt").toString();
         assertThrows(FileNotFoundException.class,
-                () -> dataRepository.deleteDatabaseFile(nonExistentDb.toString()));
+                () -> dataRepository.deleteDatabaseFile(nonExistentDbPath));
 
-        Files.write(corruptedDb, new byte[54 - 1]);
+        Path smallDbPath = testDir.resolve("small_db.txt");
+        Files.write(smallDbPath, new byte[54 - 1]);
         assertThrows(IOException.class,
-                () -> dataRepository.deleteDatabaseFile(corruptedDb.toString()));
-        try (RandomAccessFile file = new RandomAccessFile(invalidPointerDb.toFile(), "rw")) {
-            file.setLength(54 + 100);
-            file.seek(50);
-            file.writeInt(1000);
+                () -> dataRepository.deleteDatabaseFile(smallDbPath.toString()));
+
+        Path corruptedDbPath = testDir.resolve("corrupted_db.txt");
+        dataRepository.createDatabaseFile(corruptedDbPath.toString(), "corrupted_db");
+
+        try (RandomAccessFile dbFile = new RandomAccessFile(corruptedDbPath.toFile(), "rw")) {
+            dbFile.seek(50);
+            dbFile.writeInt(1000);
         }
         assertThrows(IOException.class,
-                () -> dataRepository.deleteDatabaseFile(invalidPointerDb.toString()));
-        dataRepository.createTableFile(multiPart1.toString(), "multi_part", List.of("int"));
-        dataRepository.createTableFile(multiPart2.toString(), "multi_part", List.of("int"));
+                () -> dataRepository.deleteDatabaseFile(corruptedDbPath.toString()),
+                "Должно выбрасывать исключение при неверном количестве таблиц");
 
-        try (RandomAccessFile file = new RandomAccessFile(multiPart1.toFile(), "rw")) {
-            file.seek(54 + 100);
-            file.write(multiPart2.toString().getBytes(StandardCharsets.UTF_8));
-        }
-
-        dataRepository.createTableFile(corruptedTable.toString(), "corrupted", List.of("int"));
-        Files.write(corruptedTable, new byte[54 + 100 - 1]);
-        assertDoesNotThrow(() -> dataRepository.deleteTableFile(corruptedTable.toString()));
-        assertFalse(Files.exists(corruptedTable));
-        dataRepository.createTableFile(unreadableTable.toString(), "unreadable", List.of("int"));
-
-        boolean setReadableResult = unreadableTable.toFile().setReadable(false);
-        assumeTrue(setReadableResult, "Не удалось установить права на чтение");
+        File tableFile = Paths.get(tableFilePath).toFile();
+        assertTrue(tableFile.setWritable(false), "Не удалось сделать файл read-only");
 
         try {
-            assertThrows(IOException.class,
-                    () -> dataRepository.deleteTableFile(unreadableTable.toString()));
+            IOException ex = assertThrows(IOException.class,
+                    () -> dataRepository.deleteDatabaseFile(dbFilePath));
+            assertNotNull(ex.getMessage());
         } finally {
-            boolean restoreResult = unreadableTable.toFile().setReadable(true);
-            assertTrue(restoreResult, "Не удалось восстановить права на чтение");
+            if (!tableFile.setWritable(true)) {
+                fail("Не удалось восстановить права на запись для файла: " + tableFile.getAbsolutePath());
+            }
+            Files.deleteIfExists(Paths.get(tableFilePath));
         }
 
+        Path emptyDbPath = testDir.resolve("empty_db.txt");
+        dataRepository.createDatabaseFile(emptyDbPath.toString(), "empty_db");
+
+        assertDoesNotThrow(() -> dataRepository.deleteDatabaseFile(emptyDbPath.toString()));
+        assertFalse(Files.exists(emptyDbPath));
+    }
+
+    @Test
+    void deleteTableFile_ShouldHandleAllErrorCases() throws IOException {
+        Path nonExistentTable = testDir.resolve("nonexistent_table.txt");
+        Files.deleteIfExists(nonExistentTable);
         assertThrows(IOException.class,
                 () -> dataRepository.deleteTableFile(nonExistentTable.toString()));
 
-        assertDoesNotThrow(() -> dataRepository.deleteTableFile(multiPart1.toString()));
-        assertFalse(Files.exists(multiPart1));
-        assertFalse(Files.exists(multiPart2));
+        Path unreadableTable = testDir.resolve("unreadable_table.txt");
+        dataRepository.createTableFile(unreadableTable.toString(), "unreadable", List.of("int"));
+        boolean readPermissionChanged = unreadableTable.toFile().setReadable(false);
+        assumeTrue(readPermissionChanged, "Не удалось изменить права на чтение");
+        try {
+            IOException ex = assertThrows(IOException.class,
+                    () -> dataRepository.deleteTableFile(unreadableTable.toString()));
+            assertTrue(ex.getMessage().contains("not readable"));
+        } finally {
+            boolean readPermissionRestored = unreadableTable.toFile().setReadable(true);
+            assertTrue(readPermissionRestored, "Не удалось восстановить права на чтение");
+        }
 
-        assertTrue(Files.exists(validDb));
-        assertDoesNotThrow(() -> dataRepository.deleteDatabaseFile(validDb.toString()));
-        assertFalse(Files.exists(validDb));
+        Path corruptedTable = testDir.resolve("corrupted_table.txt");
+        Files.write(corruptedTable, new byte[54 + 100 + 100 - 1]);
+        assertDoesNotThrow(() -> dataRepository.deleteTableFile(corruptedTable.toString()));
+
+        Path cyclicPart1 = testDir.resolve("cyclic1.txt");
+        Path cyclicPart2 = testDir.resolve("cyclic2.txt");
+        dataRepository.createTableFile(cyclicPart1.toString(), "cyclic", List.of("int"));
+        dataRepository.createTableFile(cyclicPart2.toString(), "cyclic", List.of("int"));
+
+        try (RandomAccessFile file1 = new RandomAccessFile(cyclicPart1.toFile(), "rw");
+             RandomAccessFile file2 = new RandomAccessFile(cyclicPart2.toFile(), "rw")) {
+            file1.seek(54 + 100);
+            file1.write(cyclicPart2.toString().getBytes(StandardCharsets.UTF_8));
+            file2.seek(54 + 100);
+            file2.write(cyclicPart1.toString().getBytes(StandardCharsets.UTF_8));
+        }
+
+        assertThrows(IOException.class,
+                () -> dataRepository.deleteTableFile(cyclicPart1.toString()));
+
+        Path primaryPart = testDir.resolve("primary_part.txt");
+        dataRepository.createTableFile(primaryPart.toString(), "primary", List.of("int"));
+        boolean writePermissionChanged = primaryPart.toFile().setWritable(false);
+        assumeTrue(writePermissionChanged, "Не удалось изменить права на запись");
+        try {
+            IOException ex2 = assertThrows(IOException.class,
+                    () -> dataRepository.deleteTableFile(primaryPart.toString()));
+            assertTrue(ex2.getMessage().contains("Failed to delete primary table part"));
+        } finally {
+            boolean writePermissionRestored = primaryPart.toFile().setWritable(true);
+            assertTrue(writePermissionRestored, "Не удалось восстановить права на запись");
+        }
+
+        Path part1 = testDir.resolve("partial1.txt");
+        Path part2 = testDir.resolve("partial2.txt");
+        dataRepository.createTableFile(part1.toString(), "partial", List.of("int"));
+        dataRepository.createTableFile(part2.toString(), "partial", List.of("int"));
+
+        try (RandomAccessFile file = new RandomAccessFile(part1.toFile(), "rw")) {
+            file.seek(54 + 100);
+            file.write(part2.toString().getBytes(StandardCharsets.UTF_8));
+        }
+
+        boolean part2WritePermissionChanged = part2.toFile().setWritable(false);
+        assumeTrue(part2WritePermissionChanged, "Не удалось изменить права на запись для part2");
+        try {
+            IOException ex3 = assertThrows(IOException.class,
+                    () -> dataRepository.deleteTableFile(part1.toString()));
+            assertTrue(ex3.getMessage().contains("Failed to delete some table parts"));
+            assertFalse(Files.exists(part1));
+            assertTrue(Files.exists(part2));
+        } finally {
+            boolean part2WritePermissionRestored = part2.toFile().setWritable(true);
+            assertTrue(part2WritePermissionRestored, "Не удалось восстановить права на запись для part2");
+            Files.deleteIfExists(part1);
+            Files.deleteIfExists(part2);
+        }
     }
 
+    @Test
+    void deleteTableFile_ShouldHandlePointerErrors() throws IOException {
+        Path mainWithMissingPart = testDir.resolve("main_missing_part.txt");
+        dataRepository.createTableFile(mainWithMissingPart.toString(), "test_table", List.of("int"));
 
+        Path missingPart = testDir.resolve("missing_part.txt");
+        try (RandomAccessFile file = new RandomAccessFile(mainWithMissingPart.toFile(), "rw")) {
+            file.seek(54 + 100);
+            file.write(missingPart.toString().getBytes(StandardCharsets.UTF_8));
+        }
+
+        IOException missingEx = assertThrows(IOException.class,
+                () -> dataRepository.deleteTableFile(mainWithMissingPart.toString()));
+
+        assertTrue(missingEx.getMessage().contains("Table part not found") &&
+                        missingEx.getMessage().contains(missingPart.toString()),
+                "Должно сообщать об отсутствующей части таблицы");
+        assertTrue(Files.exists(mainWithMissingPart), "Основная часть не должна быть удалена");
+
+        Path mainWithUnreadablePart = testDir.resolve("main_unreadable_part.txt");
+        Path unreadablePart = testDir.resolve("unreadable_part.txt");
+        dataRepository.createTableFile(mainWithUnreadablePart.toString(), "test_table", List.of("int"));
+        dataRepository.createTableFile(unreadablePart.toString(), "test_table", List.of("int"));
+
+        try (RandomAccessFile file = new RandomAccessFile(mainWithUnreadablePart.toFile(), "rw")) {
+            file.seek(54 + 100);
+            file.write(unreadablePart.toString().getBytes(StandardCharsets.UTF_8));
+        }
+
+        assumeTrue(unreadablePart.toFile().setReadable(false));
+        try {
+            IOException readEx = assertThrows(IOException.class,
+                    () -> dataRepository.deleteTableFile(mainWithUnreadablePart.toString()));
+
+            assertTrue(readEx.getMessage().contains("Failed to read next part pointer from"),
+                    "Должно сообщать о проблеме чтения указателя");
+            assertTrue(readEx.getMessage().contains(unreadablePart.toString()),
+                    "Должно содержать путь к проблемной части");
+            assertTrue(Files.exists(mainWithUnreadablePart), "Основная часть не должна быть удалена");
+        } finally {
+            assertTrue(unreadablePart.toFile().setReadable(true));
+            Files.deleteIfExists(mainWithUnreadablePart);
+            Files.deleteIfExists(unreadablePart);
+        }
+        Files.deleteIfExists(mainWithMissingPart);
+    }
+
+    /* ------------------------------- Удаление ссылок таблицы -----------------------------*/
+    @Test
+    void removeTableReference_allScenarios() throws Exception {
+        dataRepository.removeTableReference(dbFilePath, tableFilePath);
+
+        assertTrue(Files.exists(Paths.get(dbFilePath)));
+
+        try (RandomAccessFile file = new RandomAccessFile(dbFilePath, "r")) {
+            file.seek(50);
+            int tableCount = file.readInt();
+            assertEquals(0, tableCount);
+        }
+
+        String nonExistentDbPath = testDir.resolve("nonexistent_db.txt").toString();
+        assertThrows(FileNotFoundException.class,
+                () -> dataRepository.removeTableReference(nonExistentDbPath, tableFilePath));
+
+        Path smallDbPath = testDir.resolve("small_db.txt");
+        Files.write(smallDbPath, new byte[54 - 1]);
+        assertThrows(IOException.class,
+                () -> dataRepository.removeTableReference(smallDbPath.toString(), tableFilePath));
+    }
+
+    @Test
+    void removeTableReference_multipleReferences_removesOnlyOne() throws Exception {
+        String secondTablePath = testDir.resolve("second_table.txt").toString();
+        dataRepository.createTableFile(secondTablePath, "second_table", List.of("int"));
+        dataRepository.addTableReference(dbFilePath, secondTablePath);
+        dataRepository.removeTableReference(dbFilePath, tableFilePath);
+
+        try (RandomAccessFile file = new RandomAccessFile(dbFilePath, "r")) {
+            file.seek(50);
+            int tableCount = file.readInt();
+            assertEquals(1, tableCount);
+            byte[] buffer = new byte[100];
+            file.seek(54);
+            file.readFully(buffer);
+            String path = new String(buffer, StandardCharsets.UTF_8).trim();
+
+            assertEquals(secondTablePath, path);
+        }
+    }
+    @Test
+    void removeTableReference_nonMatchingReference_doesNotRemove() throws Exception {
+        String secondTablePath = testDir.resolve("second_table.txt").toString();
+        dataRepository.createTableFile(secondTablePath, "second_table", List.of("int"));
+        dataRepository.addTableReference(dbFilePath, secondTablePath);
+
+        String fakePath = testDir.resolve("fake_table.txt").toString();
+        dataRepository.removeTableReference(dbFilePath, fakePath);
+
+        try (RandomAccessFile file = new RandomAccessFile(dbFilePath, "r")) {
+            file.seek(50);
+            int tableCount = file.readInt();
+            assertEquals(2, tableCount);
+        }
+    }
+    @Test
+    void removeTableReference_cantWriteToReadOnlyFile_throwsException() {
+        Path readOnlyDb = Paths.get(dbFilePath);
+        File file = readOnlyDb.toFile();
+        assertTrue(file.setWritable(false), "Не удалось сделать файл доступным только для чтения");
+
+        try {
+            IOException ex = assertThrows(IOException.class,
+                    () -> dataRepository.removeTableReference(dbFilePath, tableFilePath));
+            assertNotNull(ex.getMessage());
+        } finally {
+            assertTrue(file.setWritable(true), "Не удалось восстановить права на запись");
+        }
+    }
+
+    /* ------------------------------- Запись данных в файле -----------------------------*/
+    @Test
+    void readRecord_readsDifferentFieldTypesCorrectly(@TempDir Path tempDir) throws IOException {
+        String tablePath = tempDir.resolve("test_table.txt").toString();
+        DataRepositoryImpl repo = new DataRepositoryImpl();
+
+        repo.createTableFile(tablePath, "test_table",
+                List.of("int", "str_10", "int", "str_5"));
+        repo.addRecord(tablePath, List.of(42, "hello", 100, "test"));
+        List<Object> result = repo.readRecord(tablePath, 0);
+
+        assertEquals(4, result.size());
+        assertEquals(42, result.get(0));
+        assertEquals("hello", result.get(1));
+        assertEquals(100, result.get(2));
+        assertEquals("test", result.get(3));
+    }
+
+    @Test
+    void readRecord_handlesEdgeCases(@TempDir Path tempDir) throws IOException {
+        String tablePath = tempDir.resolve("edge_cases.txt").toString();
+        DataRepositoryImpl repo = new DataRepositoryImpl();
+        repo.createTableFile(tablePath, "edge_cases",
+                List.of("str_1", "str_1000"));
+
+        repo.addRecord(tablePath, List.of("a", "x".repeat(1000)));
+        repo.addRecord(tablePath, List.of("", ""));
+
+        assertAll(
+                () -> {
+                    List<Object> record1 = repo.readRecord(tablePath, 0);
+                    assertEquals("a", record1.get(0));
+                    assertEquals(1000, ((String)record1.get(1)).length());
+                },
+                () -> {
+                    List<Object> record2 = repo.readRecord(tablePath, 1);
+                    assertEquals("", record2.get(0));
+                    assertEquals("", record2.get(1));
+                }
+        );
+    }
+
+    @Test
+    void readRecord_throwsForInvalidData(@TempDir Path tempDir) throws IOException {
+        String tablePath = tempDir.resolve("invalid_data.txt").toString();
+        DataRepositoryImpl repo = new DataRepositoryImpl();
+
+        repo.createTableFile(tablePath, "test", List.of("int", "str_10"));
+        repo.addRecord(tablePath, List.of(1, "valid"));
+
+        try (RandomAccessFile file = new RandomAccessFile(tablePath, "rw")) {
+            file.seek(50 + 4 + 100 + 100);
+            file.writeInt(100);
+            file.writeInt(20);
+            file.write("too_long".getBytes());
+        }
+        assertThrows(IOException.class, () -> repo.readRecord(tablePath, 0));
+    }
+
+    
 }

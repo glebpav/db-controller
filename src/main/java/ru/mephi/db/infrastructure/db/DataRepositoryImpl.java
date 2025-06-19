@@ -280,35 +280,74 @@ public class DataRepositoryImpl implements DataRepository {
             throw new IOException("Table file not found: " + tableFilePath);
         }
 
+        if (!tablePath.toFile().canRead()) {
+            throw new IOException("Table file is not readable: " + tableFilePath);
+        }
+
         List<Path> allTableParts = new ArrayList<>();
         Path currentPart = tablePath;
         int partsLimit = 1000; //либо больше взять число(чтоб бесконечного цикла не было)
+
         while (currentPart != null && partsLimit --> 0) {
+            if (!Files.exists(currentPart)) {
+                throw new IOException("Table part not found: " + currentPart);
+            }
             allTableParts.add(currentPart);
 
             try (RandomAccessFile tableFile = new RandomAccessFile(currentPart.toFile(), "r")) {
-                if (tableFile.length() < (DB_HEADER_SIZE + TABLE_SCHEMA_SIZE) + TABLE_POINTER_SIZE) {
-                    break; // Файл слишком мал для хранения указателя
+                long minRequiredSize = DB_HEADER_SIZE + TABLE_SCHEMA_SIZE + TABLE_POINTER_SIZE;
+
+                if (tableFile.length() < minRequiredSize) {
+                    // Файл слишком мал для хранения указателя - считаем его последней частью
+                    currentPart = null;
+                    continue;
                 }
 
                 tableFile.seek(DB_HEADER_SIZE + TABLE_SCHEMA_SIZE);
                 byte[] pointerBytes = new byte[TABLE_POINTER_SIZE];
-                tableFile.readFully(pointerBytes);
+                try {
+                    tableFile.readFully(pointerBytes);
+                } catch (EOFException e) {
+                    throw new IOException("Corrupted table part: incomplete pointer in " + currentPart, e);
+                }
+
                 String nextPart = new String(pointerBytes, StandardCharsets.UTF_8).trim();
                 currentPart = nextPart.isEmpty() ? null : Paths.get(nextPart).normalize();
             } catch (IOException e) {
                 throw new IOException("Failed to read next part pointer from " + currentPart, e);
             }
         }
+        // Проверка на слишком большое количество частей
+        if (partsLimit <= 0) {
+            throw new IOException("Too many table parts, possible infinite loop detected");
+        }
 
         List<Path> failedToDelete = new ArrayList<>();
+        boolean primaryPartFailed = false;
         for (int i = allTableParts.size() - 1; i >= 0; i--) {
+            Path part = allTableParts.get(i);
             try {
-                Files.deleteIfExists(allTableParts.get(i));
+                if (!Files.exists(part)) {
+                    continue;
+                }
+
+                if (!part.toFile().canWrite()) {
+                    throw new IOException("No write permissions for table part: " + part);
+                }
+
+                Files.delete(part);
             } catch (IOException e) {
                 failedToDelete.add(allTableParts.get(i));
+
+                if (i == 0) {
+                    primaryPartFailed = true;
+                }
             }
         }
+        if (primaryPartFailed) {
+            throw new IOException("Failed to delete primary table part: " + allTableParts);
+        }
+
         if (!failedToDelete.isEmpty()) {
             throw new IOException("Failed to delete some table parts: " + failedToDelete);
         }
