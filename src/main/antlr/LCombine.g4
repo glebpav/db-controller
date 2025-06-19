@@ -14,3 +14,6 @@ KW_NULL: 'NULL';
 LBRACE: '(';
 RBRACE: ')';
 SEMICOLON: ';';
+KW_SHOW   : 'SHOW';
+KW_FILES  : 'FILES';
+KW_TABLES : 'TABLES';

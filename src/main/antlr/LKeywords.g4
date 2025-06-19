@@ -2,16 +2,18 @@ lexer grammar LKeywords;
 
 import LLetters;
 
-KW_SELECT       : S E L E C T;
+KW_BEGIN: B E G I N | 'begin' | 'Begin';
+KW_TRANSACTION: T R A N S A C T I O N | 'transaction' | 'Transaction';
 KW_FROM         : F R O M    ;
 KW_WHERE        : W H E R E  ;
 KW_AS           : A S        ;
 KW_STAR         : '*'        ;
 KW_COMMA        : ','        ;
-KW_INSERT       : I N S E R T;
+KW_INSERT: [Ii][Nn][Ss][Ee][Rr][Tt];
+KW_SELECT: [Ss][Ee][Ll][Ee][Cc][Tt];
 KW_INTO         : I N T O    ;
 KW_VALUES       : V A L U E S;
-KW_SHOW         : S H O W;
+KW_SHOW : [Ss][Hh][Oo][Ww] ;
 KW_TABLES       : T A B L E S;
 KW_CREATE       : C R E A T E;
 KW_TABLE        : T A B L E;
@@ -21,8 +23,7 @@ KW_PRIMARY      : P R I M A R Y;
 KW_KEY          : K E Y;
 KW_FOREIGN      : F O R E I G N;
 KW_REFERENCES   : R E F E R E N C E S;
-KW_BEGIN        : B E G I N;
-KW_TRANSACTION  : T R A N S A C T I O N;
+
 KW_INT          : I N T;
 KW_FLOAT        : F L O A T;
 KW_TEXT         : T E X T;

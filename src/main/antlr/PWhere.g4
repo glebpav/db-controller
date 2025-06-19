@@ -1,7 +1,7 @@
 parser grammar PWhere;
 options { tokenVocab=LCombine; }
 
-condition :
+condition:
     expr
     | condition OP_AND condition
     | condition OP_OR condition
@@ -9,17 +9,17 @@ condition :
     | OP_NOT condition
 ;
 
-expr :
+expr:
     column OP_Equal value
-    | column OP_Equal column
+    | column OP_NotEqual value
     | column OP_Less value
     | column OP_More value
     | column OP_EqualLess value
     | column OP_EqualMore value
     | column KW_IS (KW_NOT)? KW_NULL
-    | column FC_LIKE pattern  // Используем FC_LIKE из LFuncs
+    | column FC_LIKE pattern
 ;
 
-column : ID;
-value : NUMBER | STRING | KW_NULL;
-pattern : STRING;  // Шаблоны с % и _
+column: ID;
+value: NUMBER | STRING | KW_NULL;
+pattern: STRING;

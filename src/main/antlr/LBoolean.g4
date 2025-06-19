@@ -2,7 +2,7 @@ lexer grammar LBoolean;
 
 import LLetters;
 
-OP_Equal        : '=='  ;
+OP_Equal        : '=' ;
 OP_Less         : '<'   ;
 OP_More         : '>'   ;
 OP_EqualLess    : '<='  ;

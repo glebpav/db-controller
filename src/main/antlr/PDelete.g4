@@ -1,4 +1,4 @@
-grammar PDelete;
+parser grammar PDelete;
 options { tokenVocab=LCombine; }
 
 query: delete_stmt EOF;

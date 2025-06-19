@@ -51,20 +51,28 @@ public class SQLParserImpl implements SQLParser {
     }
     private String parseWhereCondition(String whereClause) throws SQLParseException {
         try {
+            // Normalize input first
+            String normalized = whereClause
+                    .replace("==", "=")  // Convert double equals
+                    .replaceAll("\\s+", " ")  // Normalize whitespace
+                    .trim();
 
-            String normalized = whereClause.replace("==", "=");
             CharStream input = CharStreams.fromString(normalized);
-
             LCombine lexer = new LCombine(input);
-            CommonTokenStream tokens = new CommonTokenStream(lexer);
 
+            // Add error listener
+            lexer.removeErrorListeners();
+            lexer.addErrorListener(new DiagnosticErrorListener());
+
+            CommonTokenStream tokens = new CommonTokenStream(lexer);
             PWhere parser = new PWhere(tokens);
+
             parser.removeErrorListeners();
             parser.addErrorListener(new BaseErrorListener() {
                 @Override
                 public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol,
                                         int line, int charPos, String msg, RecognitionException e) {
-                    throw new RuntimeException("Syntax error in WHERE: " + msg);
+                    throw new RuntimeException("Syntax error at " + line + ":" + charPos + " - " + msg);
                 }
             });
 
@@ -128,7 +136,7 @@ public class SQLParserImpl implements SQLParser {
 
     private Query parseDelete(CommonTokenStream tokens) throws SQLParseException {
         try {
-            PDeleteParser parser = new PDeleteParser(tokens);
+            PDelete parser = new PDelete(tokens);
             parser.removeErrorListeners();
             parser.addErrorListener(new BaseErrorListener() {
                 @SneakyThrows
@@ -141,7 +149,7 @@ public class SQLParserImpl implements SQLParser {
                 }
             });
 
-            PDeleteParser.QueryContext queryContext = parser.query();
+            PDelete.QueryContext queryContext = parser.query();
             DeleteQueryListener listener = new DeleteQueryListener();
             ParseTreeWalker.DEFAULT.walk(listener, queryContext);
 

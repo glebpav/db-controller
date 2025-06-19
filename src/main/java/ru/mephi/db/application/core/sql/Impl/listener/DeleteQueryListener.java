@@ -1,7 +1,7 @@
 package ru.mephi.db.application.core.sql.Impl.listener;
 
 import ru.mephi.sql.parser.PDeleteBaseListener;
-import ru.mephi.sql.parser.PDeleteParser;
+import ru.mephi.sql.parser.PDelete;
 
 public class DeleteQueryListener extends PDeleteBaseListener {
     private String tableName;
@@ -9,12 +9,12 @@ public class DeleteQueryListener extends PDeleteBaseListener {
     private boolean hasWhere = false;
 
     @Override
-    public void enterTable_name(PDeleteParser.Table_nameContext ctx) {
+    public void enterTable_name(PDelete.Table_nameContext ctx) {
         this.tableName = ctx.ID().getText();
     }
 
     @Override
-    public void enterDelete_stmt(PDeleteParser.Delete_stmtContext ctx) {
+    public void enterDelete_stmt(PDelete.Delete_stmtContext ctx) {
         if (ctx.KW_WHERE() != null && ctx.condition() != null) {
             this.hasWhere = true;
             this.whereClause = ctx.condition().getText();
