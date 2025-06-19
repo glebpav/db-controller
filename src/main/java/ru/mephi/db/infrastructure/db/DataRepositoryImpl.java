@@ -588,7 +588,7 @@ public class DataRepositoryImpl implements DataRepository {
 
             // Определяем позицию для записи данных (после заголовка и существующих данных)
             long dataPosition;
-            if (recordCountInTable == 0) {
+            if (recordCountInThisPage == 0) {
                 dataPosition = TABLE_HEADER_SIZE;
             } else {
                 // Переходим к началу индекса смещений
@@ -604,7 +604,34 @@ public class DataRepositoryImpl implements DataRepository {
             //Если нужна новая страница
             if(dataPosition >= file.length() - (recordCountInThisPage + 1) * 8L){
 
+                String nextTablePath = getNextTablePartPath(file);
 
+                if (nextTablePath == null) {
+                    // Создаем новую страницу таблицы
+                    nextTablePath = generateNextTablePartPath(tablePath);
+
+                    // Читаем параметры из текущей таблицы
+                    file.seek(0);
+                    byte[] nameBytes = new byte[50];
+                    file.readFully(nameBytes);
+                    String tableName = new String(nameBytes, StandardCharsets.UTF_8).trim();
+
+                    file.seek(50 + 4 + 4); // Пропускаем счетчик записей
+                    byte[] schemaBytes = new byte[TABLE_SCHEMA_SIZE];
+                    file.readFully(schemaBytes);
+                    List<String> tableSchema = decodeSchema(schemaBytes);
+                    createNewTablePart(nextTablePath, tableName, recordCountInTable, tableSchema);
+
+                    // Обновляем указатель на следующую часть в текущей таблице
+                    updateNextTablePointer(file, nextTablePath);
+                    return;
+                }
+
+                file.seek(54);
+                file.writeInt(recordCountInTable + 1);
+
+                // Добавляем запись в новую страницу
+                addRecord(nextTablePath, data);
 
             }
             //Если вмещается на эту страницу
@@ -624,6 +651,86 @@ public class DataRepositoryImpl implements DataRepository {
                 file.writeInt(recordCountInThisPage + 1);
                 file.writeInt(recordCountInTable + 1);
             }
+        }
+    }
+
+    /**
+     * Получает путь к следующей части таблицы из текущего файла
+     */
+    private String getNextTablePartPath(RandomAccessFile file) throws IOException {
+        file.seek(TABLE_HEADER_SIZE - TABLE_POINTER_SIZE);
+        byte[] pointerBytes = new byte[TABLE_POINTER_SIZE];
+        file.readFully(pointerBytes);
+        String nextPath = new String(pointerBytes, StandardCharsets.UTF_8).trim();
+        return nextPath.isEmpty() ? null : nextPath;
+    }
+
+    /**
+     * Создает новую часть таблицы с теми же параметрами
+     */
+    private void createNewTablePart(String tableFilePath, String tableName, int recordCountInTable, List<String> schema) throws IOException {
+        validateTxtExtension(tableFilePath);
+        validateSchema(schema);
+
+        Path path = Paths.get(tableFilePath).getParent();
+        if (path != null && !Files.exists(path)) {
+            Files.createDirectories(path);
+        }
+
+        if (tableName.length() > 50) {
+            throw new IllegalArgumentException("Table name must be 50 characters or less");
+        }
+
+        try (RandomAccessFile file = new RandomAccessFile(tableFilePath, "rw")) {
+            byte[] buffer = new byte[TABLE_MAX_SIZE];
+            file.write(buffer);
+            file.seek(0);
+
+            byte[] nameBytes = tableName.getBytes(StandardCharsets.UTF_8);
+            byte[] paddedName = new byte[50];
+            System.arraycopy(nameBytes, 0, paddedName, 0, Math.min(nameBytes.length, 50));
+            file.write(paddedName);
+
+            file.writeInt(0);
+            file.writeInt(recordCountInTable);
+
+            byte[] schemaBytes = encodeSchema(schema);
+            byte[] paddedSchema = new byte[TABLE_SCHEMA_SIZE];
+            System.arraycopy(schemaBytes, 0, paddedSchema, 0, Math.min(schemaBytes.length, TABLE_SCHEMA_SIZE));
+            file.write(paddedSchema);
+
+            byte[] emptyPointer = new byte[TABLE_POINTER_SIZE];
+            file.write(emptyPointer);
+        }
+    }
+
+    /**
+     * Обновляет указатель на следующую часть таблицы
+     */
+    private void updateNextTablePointer(RandomAccessFile file, String nextTablePath) throws IOException {
+        byte[] pathBytes = nextTablePath.getBytes(StandardCharsets.UTF_8);
+        byte[] pointer = new byte[TABLE_POINTER_SIZE];
+        System.arraycopy(pathBytes, 0, pointer, 0, Math.min(pathBytes.length, TABLE_POINTER_SIZE));
+
+        file.seek(TABLE_HEADER_SIZE - TABLE_POINTER_SIZE);
+        file.write(pointer);
+    }
+
+    /**
+     * Генерирует путь для новой части таблицы
+     */
+    private String generateNextTablePartPath(String currentPath) {
+        Path path = Paths.get(currentPath);
+        String baseName = path.getFileName().toString().replace(".txt", "");
+        int partNumber = 1;
+
+        while (true) {
+            String newName = baseName + "_part" + partNumber + ".txt";
+            Path newPath = path.getParent().resolve(newName);
+            if (!Files.exists(newPath)) {
+                return newPath.toString();
+            }
+            partNumber++;
         }
     }
 
@@ -706,14 +813,14 @@ public class DataRepositoryImpl implements DataRepository {
      * Читает запись из таблицы по индексу
      */
     @Override
-    public List<Object> readRecord(String tablePath, int recordIndex) throws IOException {
+    public List<Object> readRecord(String tablePath, int recordIndex, int recordsOnPrevPages) throws IOException {
         validateTxtExtension(tablePath);
 
         try (RandomAccessFile file = new RandomAccessFile(tablePath, "r")) {
             // Получаем текущее количество записей на этой странице
             file.seek(50);
             int recordCountInThisPage = file.readInt();
-            // Получаем текущее количество записей на этой странице
+            // Получаем текущее количество записей этой таблице
             int recordCountInTable = file.readInt();
 
             if (recordIndex < 0 || recordIndex >= recordCountInTable) {
@@ -721,13 +828,14 @@ public class DataRepositoryImpl implements DataRepository {
                         ", available records: " + recordCountInTable);
             }
 
-            if (recordCountInThisPage < recordIndex) {
-
-                //Логика с несколькими страницами
-
+            if (recordsOnPrevPages + recordCountInThisPage < recordIndex + 1) {
+                String nextTablePath = getNextTablePartPath(file);
+                System.out.println("recordsOnPrevPages + recordCountInThisPage: " + recordsOnPrevPages + recordCountInThisPage);
+                readRecord(nextTablePath, recordIndex, recordsOnPrevPages + recordCountInThisPage);
             }
 
-            long indexPosition = file.length() - (recordIndex + 1) * 8L;
+            System.out.println("recordsOnPrevPages: " + recordsOnPrevPages);
+            long indexPosition = file.length() - (recordIndex - recordsOnPrevPages + 1) * 8L;
             if (indexPosition < TABLE_HEADER_SIZE) {
                 throw new IOException("Invalid index position");
             }
@@ -886,18 +994,17 @@ public class DataRepositoryImpl implements DataRepository {
 
             // Добавляем записи
             System.out.println("Adding records:");
-            repo.addRecord(tableFile, Arrays.asList(1, "Alice", 25));
-            repo.addRecord(tableFile, Arrays.asList(2, "Bob", 30));
-            repo.addRecord(tableFile, Arrays.asList(3, "Charlie", 35));
-            repo.addRecord(tableFile, Arrays.asList(4, "Dima", 100));
-            repo.addRecord(tableFile, Arrays.asList(5, "Egor", 3));
-            repo.addRecord(tableFile, Arrays.asList(6, "Gleb", 14));
+            String name = "Bob";
+            for (int i = 0; i <= 2000; i++) {
 
+                repo.addRecord(tableFile, Arrays.asList(i + 1, "Bob" + i, 30 + i));
+
+            }
 
             // Читаем записи
             System.out.println("\nReading records:");
-            for (int i = 0; i < 6; i++) {
-                List<Object> record = repo.readRecord(tableFile, i);
+            for (int i = 0; i < 2000; i++) {
+                List<Object> record = repo.readRecord(tableFile, i, 0);
                 System.out.printf("Record %d: %s%n", i, record);
             }
 
@@ -905,11 +1012,11 @@ public class DataRepositoryImpl implements DataRepository {
             //repo.deleteRecord(tableFile, 4);
 
             // Читаем записи
-            System.out.println("\nReading records:");
-            for (int i = 0; i < 6; i++) {
-                List<Object> record = repo.readRecord(tableFile, i);
-                System.out.printf("Record %d: %s%n", i, record);
-            }
+            //System.out.println("\nReading records:");
+            //for (int i = 0; i < 6; i++) {
+            //    List<Object> record = repo.readRecord(tableFile, i);
+            //    System.out.printf("Record %d: %s%n", i, record);
+            //}
 
             // Проверяем счетчик записей
             try (RandomAccessFile file = new RandomAccessFile(tableFile, "r")) {

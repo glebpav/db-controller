@@ -14,7 +14,7 @@ public interface DataRepository {
     void removeTableReference(String dbFilePath, String tableFilePath) throws IOException;
 
     void addRecord(String tablePath, List<Object> data) throws IOException;
-    List<Object> readRecord(String tablePath, int recordIndex) throws IOException;
+    List<Object> readRecord(String tablePath, int recordIndex, int recordsOnPrevPages) throws IOException;
     boolean isTableExists(String dbFilePath, String tableFilePath) throws IOException;
 
     void deleteRecord(String tablePath, int recordIndex) throws IOException;
