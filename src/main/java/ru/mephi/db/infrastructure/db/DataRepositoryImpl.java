@@ -787,11 +787,15 @@ public class DataRepositoryImpl implements DataRepository {
 
             // Чтение всех смещений
             List<Long> offsets = readOffsets(file, recordCount);
-            long deletedOffset = offsets.remove(recordIndex);
+            long deletedOffset = offsets.get(recordIndex);
 
             file.seek(deletedOffset);
             file.writeByte(0xFF); // Маркер удаления
-            truncateFileAndUpdateIndex(file, recordCount - 1, offsets);
+
+            // Удаляем смещение из списка
+            offsets.remove(recordIndex);
+
+            updateFileAfterDeletion(file, recordCount - 1, offsets);
 
             Files.deleteIfExists(backupPath);
         } catch (Exception e) {
@@ -811,7 +815,7 @@ public class DataRepositoryImpl implements DataRepository {
         file.seek(indexStart);
 
         for (int i = 0; i < recordCount; i++) {
-            offsets.add(file.readLong());
+            offsets.add(0, file.readLong());
         }
 
         return offsets;
@@ -819,28 +823,16 @@ public class DataRepositoryImpl implements DataRepository {
 
     /**
      * Усечение файла до нового размера и обновление индекса смещений.
-     * Уменьшает размер файла, обновляет количество записей и перезаписывает смещения.
      */
-    private void truncateFileAndUpdateIndex(RandomAccessFile file, int newRecordCount, List<Long> offsets)
-            throws IOException {
-        long oldLength = file.length();
-        long newLength = oldLength - 8;
-        if (newLength < TABLE_HEADER_SIZE) {
-            throw new IOException("File size cannot be less than header size");
-        }
-
-        file.setLength(newLength);
+    private void updateFileAfterDeletion(RandomAccessFile file, int newRecordCount, List<Long> offsets) throws IOException {
         file.seek(50);
         file.writeInt(newRecordCount);
 
-        long newIndexStart = newLength - (long) newRecordCount* 8;
-        if (newIndexStart < TABLE_HEADER_SIZE) {
-            throw new IOException("New index start is invalid: " + newIndexStart);
-        }
-
+        // Перезаписываем индексы смещений
+        long newIndexStart = file.length() - (long) newRecordCount * 8;
         file.seek(newIndexStart);
-        for (Long offset : offsets) {
-            file.writeLong(offset);
+        for (int i = offsets.size() - 1; i >= 0; i--) {
+            file.writeLong(offsets.get(i));
         }
     }
 
@@ -865,5 +857,55 @@ public class DataRepositoryImpl implements DataRepository {
             Files.delete(target);
         }
         Files.move(backup, target);
+    }
+
+    public static void main(String[] args) {
+        try {
+            DataRepositoryImpl repo = new DataRepositoryImpl();
+            String dbFile = "C:\\BDTest\\db.txt";
+            String tableFile = "C:\\BDTest\\users.txt";
+
+            // Создаем БД и таблицу
+            repo.createDatabaseFile(dbFile, "TestDB");
+            List<String> schema = Arrays.asList("int", "str_20", "int"); // ID, Name(10 chars), Age
+            repo.createTableFile(tableFile, "users", schema);
+            repo.addTableReference(dbFile, tableFile);
+
+            // Добавляем записи
+            System.out.println("Adding records:");
+            repo.addRecord(tableFile, Arrays.asList(1, "Alice", 25));
+            repo.addRecord(tableFile, Arrays.asList(2, "Bob", 30));
+            repo.addRecord(tableFile, Arrays.asList(3, "Charlie", 35));
+            repo.addRecord(tableFile, Arrays.asList(4, "Dima", 100));
+            repo.addRecord(tableFile, Arrays.asList(5, "Egor", 3));
+            repo.addRecord(tableFile, Arrays.asList(6, "Gleb", 14));
+
+
+            // Читаем записи
+            System.out.println("\nReading records:");
+            for (int i = 0; i < 6; i++) {
+                List<Object> record = repo.readRecord(tableFile, i);
+                System.out.printf("Record %d: %s%n", i, record);
+            }
+
+            //Удаляем
+            repo.deleteRecord(tableFile, 4);
+
+            // Читаем записи
+            System.out.println("\nReading records:");
+            for (int i = 0; i < 5; i++) {
+                List<Object> record = repo.readRecord(tableFile, i);
+                System.out.printf("Record %d: %s%n", i, record);
+            }
+
+            // Проверяем счетчик записей
+            try (RandomAccessFile file = new RandomAccessFile(tableFile, "r")) {
+                file.seek(50);
+                System.out.println("\nTotal records: " + file.readInt());
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }
