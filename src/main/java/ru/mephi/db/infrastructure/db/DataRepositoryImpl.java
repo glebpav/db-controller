@@ -719,14 +719,24 @@ public class DataRepositoryImpl implements DataRepository {
     /**
      * Генерирует путь для новой части таблицы
      */
-    private String generateNextTablePartPath(String currentPath) {
-        Path path = Paths.get(currentPath);
+    private String generateNextTablePartPath(String currentPath) throws IOException {
+        Path path = Paths.get(currentPath).toAbsolutePath(); // Приводим к абсолютному пути
+        Path parentDir = path.getParent();
+
+        if (parentDir == null) {
+            parentDir = Paths.get("").toAbsolutePath();
+        }
+
+        if (!Files.exists(parentDir)) {
+            Files.createDirectories(parentDir);
+        }
+
         String baseName = path.getFileName().toString().replace(".txt", "");
         int partNumber = 1;
 
         while (true) {
             String newName = baseName + "_part" + partNumber + ".txt";
-            Path newPath = path.getParent().resolve(newName);
+            Path newPath = parentDir.resolve(newName);
             if (!Files.exists(newPath)) {
                 return newPath.toString();
             }
@@ -892,31 +902,45 @@ public class DataRepositoryImpl implements DataRepository {
         Path backupPath = createBackup(tablePath);
 
         try (RandomAccessFile file = new RandomAccessFile(tablePath, "rw")) {
-            // Проверка минимального размера файла
+            // 1. Проверка минимального размера файла
             if (file.length() < TABLE_HEADER_SIZE + 8) {
                 throw new IOException("File is too small or corrupted");
             }
 
             file.seek(50);
-            int recordCount = file.readInt();
+            int recordsInPage = file.readInt();
+            int totalRecords = file.readInt();
 
-            if (recordIndex < 0 || recordIndex >= recordCount) {
-                throw new IllegalArgumentException("Invalid record index");
+            if (recordIndex < 0 || recordIndex >= totalRecords) {
+                throw new IllegalArgumentException("Invalid record index: " + recordIndex +
+                        ", total records: " + totalRecords);
             }
 
-            // Чтение всех смещений
-            List<Long> offsets = readOffsets(file, recordCount);
-            long deletedOffset = offsets.get(recordIndex);
+            if (recordIndex >= recordsInPage) {
+                file.seek(TABLE_HEADER_SIZE - TABLE_POINTER_SIZE);
+                byte[] pointer = new byte[TABLE_POINTER_SIZE];
+                file.readFully(pointer);
+                String nextPagePath = new String(pointer, StandardCharsets.UTF_8).trim();
 
+                if (!nextPagePath.isEmpty()) {
+                    deleteRecord(nextPagePath, recordIndex - recordsInPage);
+
+                    // Обновляем общий счетчик записей
+                    file.seek(54);
+                    file.writeInt(totalRecords - 1);
+                }
+                return;
+            }
+            List<Long> offsets = readOffsets(file, recordsInPage);
+            long deletedOffset = offsets.remove(recordIndex);
             file.seek(deletedOffset);
             file.writeByte(0xFF); // Маркер удаления
 
-            // Удаляем смещение из списка
-            offsets.remove(recordIndex);
+            updateFileAfterDeletion(file, recordsInPage - 1, offsets);
+            file.seek(54);
+            file.writeInt(totalRecords - 1);
 
-            updateFileAfterDeletion(file, recordCount - 1, offsets);
-
-            Files.deleteIfExists(backupPath);
+            Files.delete(backupPath);
         } catch (Exception e) {
             restoreFromBackup(tablePath, backupPath);
             throw new IOException("Failed to delete record", e);
@@ -981,45 +1005,57 @@ public class DataRepositoryImpl implements DataRepository {
     public static void main(String[] args) {
         try {
             DataRepositoryImpl repo = new DataRepositoryImpl();
-            String dbFile = "C:\\BDTest\\db.txt";
-            String tableFile = "C:\\BDTest\\users.txt";
+            String dbFile = "test_db.txt";
+            String tableFile = "test_table.txt";
 
-            // Создаем БД и таблицу
+            new File(dbFile).delete();
+            new File(tableFile).delete();
+
+            // 1. Создаем БД и таблицу
             repo.createDatabaseFile(dbFile, "TestDB");
-            List<String> schema = Arrays.asList("int", "str_20", "int"); // ID, Name(10 chars), Age
-            repo.createTableFile(tableFile, "users", schema);
+            List<String> schema = Arrays.asList("int", "str_10", "int"); // ID, Name, Age
+            repo.createTableFile(tableFile, "Users", schema);
             repo.addTableReference(dbFile, tableFile);
 
-            // Добавляем записи
-            System.out.println("Adding records:");
-            String name = "Bob";
-            for (int i = 0; i <= 2000; i++) {
-
-                repo.addRecord(tableFile, Arrays.asList(i + 1, "Bob" + i, 30 + i));
-
-            }
-
-            // Читаем записи
-            System.out.println("\nReading records:");
+            // 2. Добавляем 2000 записей
+            System.out.println("=== Добавляем 2000 записей ===");
             for (int i = 0; i < 2000; i++) {
-                List<Object> record = repo.readRecord(tableFile, i, 0);
-                System.out.printf("Record %d: %s%n", i, record);
+                repo.addRecord(tableFile, Arrays.asList(i+1, "User"+i, 20 + i%30));
             }
+            System.out.println("Успешно добавлено 2000 записей\n");
 
-            //Удаляем
-            //repo.deleteRecord(tableFile, 4);
+            // 3. Удаляем записи с индексами 1000 и 1700
+            System.out.println("\n=== Удаляем записи 1000 и 1700 ===");
+            repo.deleteRecord(tableFile, 1000);
+            repo.deleteRecord(tableFile, 1700);
+            System.out.println("Записи удалены\n");
 
-            // Читаем записи
-            //System.out.println("\nReading records:");
-            //for (int i = 0; i < 6; i++) {
-            //    List<Object> record = repo.readRecord(tableFile, i);
-            //    System.out.printf("Record %d: %s%n", i, record);
-            //}
+            // 4. Выводим все оставшиеся записи
+            System.out.println("=== ВСЕ ОСТАВШИЕСЯ ЗАПИСИ ПОСЛЕ УДАЛЕНИЯ ===");
 
-            // Проверяем счетчик записей
             try (RandomAccessFile file = new RandomAccessFile(tableFile, "r")) {
-                file.seek(50);
-                System.out.println("\nTotal records: " + file.readInt());
+                file.seek(54);
+                int totalRecords = file.readInt();
+
+                // Выводим записи блоками по 20 для удобства просмотра
+                int recordsPerBlock = 20;
+                for (int i = 0; i < totalRecords; i++) {
+                    if (i % recordsPerBlock == 0) {
+                        System.out.printf("\n=== Записи %d-%d ===\n",
+                                i, Math.min(i + recordsPerBlock - 1, totalRecords - 1));
+                    }
+
+                    try {
+                        List<Object> record = repo.readRecord(tableFile, i, 0);
+                        System.out.printf("%4d: [ID=%4d, Name=%-8s, Age=%2d]%n",
+                                i, record.get(0), record.get(1), record.get(2));
+                    } catch (IllegalArgumentException e) {
+                        System.out.printf("%4d: [УДАЛЕНО]%n", i);
+                    }
+                }
+
+                System.out.printf("\nИтого записей после удаления: %d (должно быть 1998)\n",
+                        totalRecords);
             }
 
         } catch (Exception e) {
