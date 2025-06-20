@@ -830,11 +830,9 @@ public class DataRepositoryImpl implements DataRepository {
 
             if (recordsOnPrevPages + recordCountInThisPage < recordIndex + 1) {
                 String nextTablePath = getNextTablePartPath(file);
-                System.out.println("recordsOnPrevPages + recordCountInThisPage: " + recordsOnPrevPages + recordCountInThisPage);
-                readRecord(nextTablePath, recordIndex, recordsOnPrevPages + recordCountInThisPage);
+                return readRecord(nextTablePath, recordIndex, recordsOnPrevPages + recordCountInThisPage);
             }
 
-            System.out.println("recordsOnPrevPages: " + recordsOnPrevPages);
             long indexPosition = file.length() - (recordIndex - recordsOnPrevPages + 1) * 8L;
             if (indexPosition < TABLE_HEADER_SIZE) {
                 throw new IOException("Invalid index position");
