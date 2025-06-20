@@ -1008,9 +1008,6 @@ public class DataRepositoryImpl implements DataRepository {
             String dbFile = "test_db.txt";
             String tableFile = "test_table.txt";
 
-            new File(dbFile).delete();
-            new File(tableFile).delete();
-
             // 1. Создаем БД и таблицу
             repo.createDatabaseFile(dbFile, "TestDB");
             List<String> schema = Arrays.asList("int", "str_10", "int"); // ID, Name, Age

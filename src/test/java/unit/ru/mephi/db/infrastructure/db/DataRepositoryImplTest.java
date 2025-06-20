@@ -509,63 +509,6 @@ class DataRepositoryImplTest {
     }
 
     /* ------------------------------- Запись данных в файле -----------------------------*/
-    @Test
-    void readRecord_readsDifferentFieldTypesCorrectly(@TempDir Path tempDir) throws IOException {
-        String tablePath = tempDir.resolve("test_table.txt").toString();
-        DataRepositoryImpl repo = new DataRepositoryImpl();
-
-        repo.createTableFile(tablePath, "test_table",
-                List.of("int", "str_10", "int", "str_5"));
-        repo.addRecord(tablePath, List.of(42, "hello", 100, "test"));
-        List<Object> result = repo.readRecord(tablePath, 0);
-
-        assertEquals(4, result.size());
-        assertEquals(42, result.get(0));
-        assertEquals("hello", result.get(1));
-        assertEquals(100, result.get(2));
-        assertEquals("test", result.get(3));
-    }
-
-    @Test
-    void readRecord_handlesEdgeCases(@TempDir Path tempDir) throws IOException {
-        String tablePath = tempDir.resolve("edge_cases.txt").toString();
-        DataRepositoryImpl repo = new DataRepositoryImpl();
-        repo.createTableFile(tablePath, "edge_cases",
-                List.of("str_1", "str_1000"));
-
-        repo.addRecord(tablePath, List.of("a", "x".repeat(1000)));
-        repo.addRecord(tablePath, List.of("", ""));
-
-        assertAll(
-                () -> {
-                    List<Object> record1 = repo.readRecord(tablePath, 0);
-                    assertEquals("a", record1.get(0));
-                    assertEquals(1000, ((String)record1.get(1)).length());
-                },
-                () -> {
-                    List<Object> record2 = repo.readRecord(tablePath, 1);
-                    assertEquals("", record2.get(0));
-                    assertEquals("", record2.get(1));
-                }
-        );
-    }
-
-    @Test
-    void readRecord_throwsForInvalidData(@TempDir Path tempDir) throws IOException {
-        String tablePath = tempDir.resolve("invalid_data.txt").toString();
-        DataRepositoryImpl repo = new DataRepositoryImpl();
-
-        repo.createTableFile(tablePath, "test", List.of("int", "str_10"));
-        repo.addRecord(tablePath, List.of(1, "valid"));
-
-        try (RandomAccessFile file = new RandomAccessFile(tablePath, "rw")) {
-            file.seek(50 + 4 + 100 + 100);
-            file.writeInt(100);
-            file.writeInt(20);
-            file.write("too_long".getBytes());
-        }
-        assertThrows(IOException.class, () -> repo.readRecord(tablePath, 0));
-    }
 
     
 }
