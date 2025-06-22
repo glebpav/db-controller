@@ -58,14 +58,13 @@ idea.module.generatedSourceDirs.add(file(generatedSourcesPath))
 tasks.generateGrammarSource {
     maxHeapSize = "64m"
     arguments = arguments + listOf(
-        "-visitor", // Генерировать visitor
-        "-listener", // Генерировать listener
-        "-package", "ru.mephi.sql.parser", // Указание пакета
-        "-Xexact-output-dir" // Точное расположение выходных файлов
+        "-visitor",
+        "-listener",
+        "-package", "ru.mephi.sql.parser",
+        "-Xexact-output-dir"
     )
     outputDirectory = file("$generatedSourcesPath/ru/mephi/sql/parser")
 }
-
 tasks.clean {
     doLast {
         file(generatedSourcesPath).deleteRecursively()
