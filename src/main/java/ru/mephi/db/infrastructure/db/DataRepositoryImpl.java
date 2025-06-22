@@ -1014,4 +1014,259 @@ public class DataRepositoryImpl implements DataRepository {
         }
         Files.move(backup, target);
     }
+
+    /**
+     * Находит индексы записей, удовлетворяющих заданному условию между колонками.
+     *
+     * @param tablePath путь к файлу таблицы
+     * @param column1 индекс первой колонки (0-based)
+     * @param operator оператор сравнения (">", "<", ">=", "<=", "==", "!=")
+     * @param column2 индекс второй колонки (0-based)
+     * @return список индексов записей, удовлетворяющих условию
+     * @throws IOException при ошибках чтения/записи
+     * @throws IllegalArgumentException если параметры некорректны
+     */
+    @Override
+    public List<Integer> findRecordsByCondition(String tablePath, int column1, String operator, int column2)
+            throws IOException {
+        validateTxtExtension(tablePath);
+
+        List<Integer> matchingIndices = new ArrayList<>();
+        int currentIndex = 0;
+
+        try (RandomAccessFile file = new RandomAccessFile(tablePath, "r")) {
+            // Получаем схему таблицы
+            List<String> schema = getTableSchema(file);
+
+            // Валидация индексов колонок
+            if (column1 < 0 || column1 >= schema.size() ||
+                    column2 < 0 || column2 >= schema.size()) {
+                throw new IllegalArgumentException(
+                        String.format("Column indices out of bounds (0-%d)", schema.size()-1));
+            }
+
+            // Валидация оператора
+            if (!Arrays.asList(">", "<", ">=", "<=", "==", "!=").contains(operator)) {
+                throw new IllegalArgumentException(
+                        "Unsupported operator. Valid operators: >, <, >=, <=, ==, !=");
+            }
+
+            // Получаем общее количество записей
+            file.seek(50);
+            int recordsInPage = file.readInt();
+            int totalRecords = file.readInt();
+
+            // Читаем все записи на текущей странице
+            for (int i = 0; i < recordsInPage; i++) {
+                List<Object> record = readRecord(tablePath, currentIndex, 0);
+                if (checkCondition(record, column1, operator, column2)) {
+                    matchingIndices.add(currentIndex);
+                }
+                currentIndex++;
+            }
+
+            // Рекурсивно проверяем следующую часть таблицы, если есть
+            String nextTablePath = getNextTablePartPath(file);
+            if (nextTablePath != null) {
+                List<Integer> indicesFromNextPart = findRecordsByCondition(
+                        nextTablePath, column1, operator, column2);
+                for (int index : indicesFromNextPart) {
+                    matchingIndices.add(currentIndex + index);
+                }
+            }
+        }
+
+        return matchingIndices;
+    }
+
+    /**
+     * Проверяет, удовлетворяет ли запись заданному условию.
+     */
+    private boolean checkCondition(List<Object> record, int column1, String operator, int column2) {
+        Object value1 = record.get(column1);
+        Object value2 = record.get(column2);
+
+        // Для целых чисел
+        if (value1 instanceof Integer && value2 instanceof Integer) {
+            int int1 = (Integer) value1;
+            int int2 = (Integer) value2;
+
+            switch (operator) {
+                case ">": return int1 > int2;
+                case "<": return int1 < int2;
+                case ">=": return int1 >= int2;
+                case "<=": return int1 <= int2;
+                case "==": return int1 == int2;
+                case "!=": return int1 != int2;
+                default: throw new AssertionError("Unsupported operator: " + operator);
+            }
+        }
+        // Для строк
+        else if (value1 instanceof String && value2 instanceof String) {
+            String str1 = (String) value1;
+            String str2 = (String) value2;
+            int cmp = str1.compareTo(str2);
+
+            switch (operator) {
+                case ">": return cmp > 0;
+                case "<": return cmp < 0;
+                case ">=": return cmp >= 0;
+                case "<=": return cmp <= 0;
+                case "==": return cmp == 0;
+                case "!=": return cmp != 0;
+                default: throw new AssertionError("Unsupported operator: " + operator);
+            }
+        }
+        // Для смешанных типов (не поддерживается)
+        else {
+            throw new IllegalArgumentException(String.format(
+                    "Cannot compare different types: %s and %s",
+                    value1.getClass().getSimpleName(),
+                    value2.getClass().getSimpleName()));
+        }
+    }
+
+    @Override
+    public List<Integer> findRecordsByConstant(String tablePath, int columnIndex, String operator, Object constant)
+            throws IOException {
+        validateTxtExtension(tablePath);
+
+        List<Integer> matchingIndices = new ArrayList<>();
+        int currentIndex = 0;
+
+        try (RandomAccessFile file = new RandomAccessFile(tablePath, "r")) {
+            // Получаем схему таблицы
+            List<String> schema = getTableSchema(file);
+
+            // Валидация индекса колонки
+            if (columnIndex < 0 || columnIndex >= schema.size()) {
+                throw new IllegalArgumentException(
+                        String.format("Column index out of bounds (0-%d)", schema.size()-1));
+            }
+
+            // Валидация оператора
+            if (!Arrays.asList(">", "<", ">=", "<=", "==", "!=").contains(operator)) {
+                throw new IllegalArgumentException(
+                        "Unsupported operator. Valid operators: >, <, >=, <=, ==, !=");
+            }
+
+            // Проверка соответствия типа константы типу колонки
+            String columnType = schema.get(columnIndex);
+            if (columnType.equals("int") && !(constant instanceof Integer)) {
+                throw new IllegalArgumentException(
+                        "Column type is int but constant is " + constant.getClass().getSimpleName());
+            }
+            else if (columnType.startsWith("str_") && !(constant instanceof String)) {
+                throw new IllegalArgumentException(
+                        "Column type is string but constant is " + constant.getClass().getSimpleName());
+            }
+
+            // Получаем количество записей
+            file.seek(50);
+            int recordsInPage = file.readInt();
+            int totalRecords = file.readInt();
+
+            // Читаем все записи на текущей странице
+            for (int i = 0; i < recordsInPage; i++) {
+                List<Object> record = readRecord(tablePath, currentIndex, 0);
+                if (checkConditionWithConstant(record.get(columnIndex), operator, constant)) {
+                    matchingIndices.add(currentIndex);
+                }
+                currentIndex++;
+            }
+
+            // Рекурсивно проверяем следующую часть таблицы, если есть
+            String nextTablePath = getNextTablePartPath(file);
+            if (nextTablePath != null) {
+                List<Integer> indicesFromNextPart = findRecordsByConstant(
+                        nextTablePath, columnIndex, operator, constant);
+                for (int index : indicesFromNextPart) {
+                    matchingIndices.add(currentIndex + index);
+                }
+            }
+        }
+
+        return matchingIndices;
+    }
+
+    /**
+     * Проверяет, удовлетворяет ли значение столбца условию с константой.
+     */
+    private boolean checkConditionWithConstant(Object columnValue, String operator, Object constant) {
+        // Для целых чисел
+        if (columnValue instanceof Integer && constant instanceof Integer) {
+            int intValue = (Integer) columnValue;
+            int constValue = (Integer) constant;
+
+            switch (operator) {
+                case ">": return intValue > constValue;
+                case "<": return intValue < constValue;
+                case ">=": return intValue >= constValue;
+                case "<=": return intValue <= constValue;
+                case "==": return intValue == constValue;
+                case "!=": return intValue != constValue;
+                default: throw new AssertionError("Unsupported operator: " + operator);
+            }
+        }
+        // Для строк
+        else if (columnValue instanceof String && constant instanceof String) {
+            String strValue = (String) columnValue;
+            String constStr = (String) constant;
+            int cmp = strValue.compareTo(constStr);
+
+            switch (operator) {
+                case ">": return cmp > 0;
+                case "<": return cmp < 0;
+                case ">=": return cmp >= 0;
+                case "<=": return cmp <= 0;
+                case "==": return cmp == 0;
+                case "!=": return cmp != 0;
+                default: throw new AssertionError("Unsupported operator: " + operator);
+            }
+        }
+        // Для несовпадающих типов
+        else {
+            throw new IllegalArgumentException(String.format(
+                    "Cannot compare %s with %s",
+                    columnValue.getClass().getSimpleName(),
+                    constant.getClass().getSimpleName()));
+        }
+    }
+
+    public static void main(String[] args) {
+        try {
+            DataRepositoryImpl repo = new DataRepositoryImpl();
+            String dbFile = "C:\\BDTest\\DB.txt";
+            String tableFile = "C:\\BDTest\\Users.txt";
+
+            // 1. Создаем БД и таблицу
+            repo.createDatabaseFile(dbFile, "DB");
+            List<String> schema = Arrays.asList("int", "str_20", "int", "int"); // ID, Name, Age
+            repo.createTableFile(tableFile, "Users", schema);
+            repo.addTableReference(dbFile, tableFile);
+
+            // 2. Добавляем 2000 записей
+            System.out.println("=== Добавляем 2000 записей ===");
+            for (int i = 0; i < 1000; i++) {
+                repo.addRecord(tableFile, Arrays.asList(i+1, "User"+i, 20 + i%30, 10 + i%40));
+            }
+            System.out.println("Успешно добавлено 2000 записей\n");
+
+            // Читаем записи
+            System.out.println("\nReading records:");
+            for (int i = 0; i < 1000; i++) {
+                List<Object> record = repo.readRecord(tableFile, i, 0);
+                System.out.printf("Record %d: %s%n", i, record.get(1));
+            }
+
+            List<Integer> index = repo.findRecordsByConstant(tableFile, 2, "==", 45);
+            for (int i = 0; i < index.size(); i++) {
+                List<Object> record = repo.readRecord(tableFile, index.get(i), 0);
+                System.out.printf("Record %d: %s%n", i, record);
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 }
