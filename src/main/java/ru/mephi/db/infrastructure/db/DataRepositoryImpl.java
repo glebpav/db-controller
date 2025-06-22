@@ -11,6 +11,8 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class DataRepositoryImpl implements DataRepository {
@@ -1233,6 +1235,104 @@ public class DataRepositoryImpl implements DataRepository {
         }
     }
 
+    /**
+     * Находит индексы записей, где значение в указанном строковом столбце соответствует шаблону.
+     *
+     * @param tablePath путь к файлу таблицы
+     * @param columnIndex индекс колонки (0-based)
+     * @param pattern шаблон для поиска (% - любое количество символов, _ - один символ)
+     * @param caseSensitive чувствительность к регистру (true/false)
+     * @return список индексов записей, удовлетворяющих шаблону
+     * @throws IOException при ошибках чтения/записи
+     * @throws IllegalArgumentException если параметры некорректны
+     */
+    @Override
+    public List<Integer> findRecordsByPattern(
+            String tablePath,
+            int columnIndex,
+            String pattern,
+            boolean caseSensitive
+    ) throws IOException {
+        validateTxtExtension(tablePath);
+
+        List<Integer> matchingIndices = new ArrayList<>();
+        int currentIndex = 0;
+
+        try (RandomAccessFile file = new RandomAccessFile(tablePath, "r")) {
+            // Получаем схему таблицы
+            List<String> schema = getTableSchema(file);
+
+            // Валидация индекса колонки
+            if (columnIndex < 0 || columnIndex >= schema.size()) {
+                throw new IllegalArgumentException(
+                        String.format("Column index out of bounds (0-%d)", schema.size()-1));
+            }
+
+            // Проверяем что колонка строкового типа
+            String columnType = schema.get(columnIndex);
+            if (!columnType.startsWith("str_")) {
+                throw new IllegalArgumentException(
+                        "Pattern search is only supported for string columns");
+            }
+
+            // Компилируем шаблон в регулярное выражение
+            String regex = convertPatternToRegex(pattern, caseSensitive);
+            Pattern compiledPattern = Pattern.compile(regex);
+
+            // Получаем количество записей
+            file.seek(50);
+            int recordsInPage = file.readInt();
+            int totalRecords = file.readInt();
+
+            // Читаем все записи на текущей странице
+            for (int i = 0; i < recordsInPage; i++) {
+                List<Object> record = readRecord(tablePath, currentIndex, 0);
+                Object value = record.get(columnIndex);
+
+                if (value != null) {
+                    String strValue = (String) value;
+                    Matcher matcher = compiledPattern.matcher(strValue);
+                    if (matcher.matches()) {
+                        matchingIndices.add(currentIndex);
+                    }
+                }
+                currentIndex++;
+            }
+
+            // Рекурсивно проверяем следующую часть таблицы, если есть
+            String nextTablePath = getNextTablePartPath(file);
+            if (nextTablePath != null) {
+                List<Integer> indicesFromNextPart = findRecordsByPattern(
+                        nextTablePath, columnIndex, pattern, caseSensitive);
+                for (int index : indicesFromNextPart) {
+                    matchingIndices.add(currentIndex + index);
+                }
+            }
+        }
+
+        return matchingIndices;
+    }
+
+    /**
+     * Конвертирует SQL-подобный шаблон в регулярное выражение.
+     */
+    private String convertPatternToRegex(String pattern, boolean caseSensitive) {
+        // Экранируем специальные символы regex
+        String escaped = Pattern.quote(pattern)
+                .replace("%", "\\E.*\\Q")
+                .replace("_", "\\E.\\Q");
+
+        // Собираем окончательное регулярное выражение
+        String regex = "^" + escaped + "$";
+
+        // Устанавливаем флаг чувствительности к регистру
+        if (!caseSensitive) {
+            regex = "(?i)" + regex;
+        }
+
+        return regex;
+    }
+
     public static void main(String[] args) {
         try {
             DataRepositoryImpl repo = new DataRepositoryImpl();
@@ -1259,7 +1359,7 @@ public class DataRepositoryImpl implements DataRepository {
                 System.out.printf("Record %d: %s%n", i, record.get(1));
             }
 
-            List<Integer> index = repo.findRecordsByConstant(tableFile, 2, "==", 45);
+            List<Integer> index = repo.findRecordsByPattern(tableFile, 1, "%er__", false);
             for (int i = 0; i < index.size(); i++) {
                 List<Object> record = repo.readRecord(tableFile, index.get(i), 0);
                 System.out.printf("Record %d: %s%n", i, record);
