@@ -1,35 +1,64 @@
 parser grammar PDelete;
-options { tokenVocab=LCombine; }
 
-query: delete_stmt EOF;
+options {
+    tokenVocab = LCombine;
+}
 
-delete_stmt:
-    KW_DELETE KW_FROM table_name
-    (KW_WHERE condition)?
-    SEMICOLON;
+query
+    : delete_stmt EOF
+    ;
 
-table_name: ID;
+delete_stmt
+    : KW_DELETE KW_FROM table_name delete_condition SEMICOLON?
+    ;
 
-condition:
-    expr
-    | LBRACE condition RBRACE
-    | OP_NOT condition
-    | condition OP_AND condition
-    | condition OP_OR condition;
+table_name
+    : ID
+    ;
 
-expr:
-    column comparator value
-    | column comparator column
-    | column KW_IS (KW_NOT)? KW_NULL
-    | column KW_NOT? FC_LIKE pattern;
+delete_condition
+    : row_index
+    | where_condition
+    ;
 
-comparator:
-    OP_Equal | OP_NotEqual |
-    OP_Less | OP_More |
-    OP_EqualLess | OP_EqualMore;
+row_index
+    : NUMBER
+    ;
 
-column: ID;
+where_condition
+    : expression (logical_op expression)*
+    ;
 
-value: NUMBER | STRING | KW_NULL;
+expression
+    : column_index comparison_operator value
+    | column_index KW_LIKE string_pattern
+    | LBRACE where_condition RBRACE
+    ;
 
-pattern: STRING;
+comparison_operator
+    : OP_Equal
+    | OP_NotEqual
+    | OP_Less
+    | OP_More
+    | OP_EqualLess
+    | OP_EqualMore
+    ;
+
+logical_op
+    : OP_AND
+    | OP_OR
+    ;
+
+column_index
+    : NUMBER
+    ;
+
+value
+    : STRING
+    | NUMBER
+    | KW_NULL
+    ;
+
+string_pattern
+    : STRING
+    ;

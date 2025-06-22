@@ -40,7 +40,10 @@ public class SQLParserImpl implements SQLParser {
                 return parseRollback(tokens);
             } else if (upperSql.startsWith("SHOW FILES")) {
                 return parseShowFiles(tokens);
-            }else if (upperSql.startsWith("SHOW TABLES")) {
+            }else if(upperSql.startsWith("CREATE TABLE")){
+                return parseCreateTable(tokens);
+            }
+            else if (upperSql.startsWith("SHOW TABLES")) {
                 return parseShowTables(tokens);
             } else {
                 throw new SQLParseException("Unsupported SQL query type");
@@ -48,90 +51,83 @@ public class SQLParserImpl implements SQLParser {
         } catch (Exception e) {
             throw new SQLParseException("Error parsing SQL: " + e.getMessage());
         }
-    }
-    private String parseWhereCondition(String whereClause) throws SQLParseException {
+    }private Query parseCreateTable(CommonTokenStream tokens) throws SQLParseException {
         try {
-            // Normalize input first
-            String normalized = whereClause
-                    .replace("==", "=")  // Convert double equals
-                    .replaceAll("\\s+", " ")  // Normalize whitespace
-                    .trim();
-
-            CharStream input = CharStreams.fromString(normalized);
-            LCombine lexer = new LCombine(input);
-
-            // Add error listener
-            lexer.removeErrorListeners();
-            lexer.addErrorListener(new DiagnosticErrorListener());
-
-            CommonTokenStream tokens = new CommonTokenStream(lexer);
-            PWhere parser = new PWhere(tokens);
-
+            PCreateTable parser = new PCreateTable(tokens);
             parser.removeErrorListeners();
             parser.addErrorListener(new BaseErrorListener() {
                 @Override
                 public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol,
                                         int line, int charPos, String msg, RecognitionException e) {
-                    throw new RuntimeException("Syntax error at " + line + ":" + charPos + " - " + msg);
+                    throw new RuntimeException("Syntax error in CREATE TABLE at " + line + ":" + charPos + " - " + msg);
                 }
             });
 
-            PWhere.ConditionContext ctx = parser.condition();
-            WhereConditionListener listener = new WhereConditionListener();
+            PCreateTable.QueryContext ctx = parser.query();
+            CreateTableListener listener = new CreateTableListener();
             ParseTreeWalker.DEFAULT.walk(listener, ctx);
 
-            return listener.getWhereClause();
+            return Query.builder()
+                    .type(QueryType.CREATE_TABLE)
+                    .table(listener.getTableName())
+                    .columnTypes(listener.getColumnTypes())
+                    .build();
         } catch (Exception e) {
-            throw new SQLParseException("WHERE condition error: " + e.getMessage());
+            throw new SQLParseException("Failed to parse CREATE TABLE: " + e.getMessage());
         }
     }
+
     private Query parseSelect(CommonTokenStream tokens) throws SQLParseException {
-        PSelect parser = new PSelect(tokens);
-        PSelect.QueryContext queryContext = parser.query();
+        try {
+            PSelect parser = new PSelect(tokens);
+            parser.removeErrorListeners();
+            parser.addErrorListener(new BaseErrorListener() {
+                @Override
+                public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol,
+                                        int line, int charPos, String msg, RecognitionException e) {
+                    throw new RuntimeException("Syntax error in SELECT at " + line + ":" + charPos + " - " + msg);
+                }
+            });
 
-        SelectQueryListener listener = new SelectQueryListener();
-        ParseTreeWalker.DEFAULT.walk(listener, queryContext);
+            PSelect.QueryContext queryContext = parser.query();
+            SelectQueryListener listener = new SelectQueryListener();
+            ParseTreeWalker.DEFAULT.walk(listener, queryContext);
 
-
-        String whereCondition = null;
-        if (listener.hasWhereClause()) {
-            whereCondition = parseWhereCondition(listener.getWhereClause());
+            return Query.builder()
+                    .type(QueryType.SELECT)
+                    .table(listener.getTableName())
+                    .columnIndices(listener.getColumnIndices())
+                    .whereClause(listener.hasWhereClause() ? listener.getWhereClause() : null)
+                    .build();
+        } catch (Exception e) {
+            throw new SQLParseException("Failed to parse SELECT query: " + e.getMessage());
         }
-
-        return Query.builder()
-                .type(QueryType.SELECT)
-                .table(listener.getTableName())
-                .columns(listener.getColumns())
-                .whereClause(whereCondition)
-                .build();
     }
 
     private Query parseInsert(CommonTokenStream tokens) throws SQLParseException {
-        PInsert parser = new PInsert(tokens);
-        parser.setBuildParseTree(true);
-        PInsert.QueryContext queryContext = parser.query();
+        try {
+            PInsert parser = new PInsert(tokens);
+            parser.removeErrorListeners();
+            parser.addErrorListener(new BaseErrorListener() {
+                @Override
+                public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol,
+                                        int line, int charPos, String msg, RecognitionException e) {
+                    throw new RuntimeException("Syntax error in INSERT at " + line + ":" + charPos + " - " + msg);
+                }
+            });
 
-        InsertQueryListener listener = new InsertQueryListener();
-        ParseTreeWalker.DEFAULT.walk(listener, queryContext);
+            PInsert.QueryContext queryContext = parser.query();
+            InsertQueryListener listener = new InsertQueryListener();
+            ParseTreeWalker.DEFAULT.walk(listener, queryContext);
 
-        Map<String, Object> dataMap = new HashMap<>();
-        List<String> columns = listener.getColumns();
-        List<Object> values = listener.getValues();
-
-        if (columns.size() != values.size()) {
-            throw new SQLParseException("Number of columns doesn't match number of values");
+            return Query.builder()
+                    .type(QueryType.INSERT)
+                    .table(listener.getTableName())
+                    .values(listener.getValues())
+                    .build();
+        } catch (Exception e) {
+            throw new SQLParseException("Failed to parse INSERT query: " + e.getMessage());
         }
-
-        for (int i = 0; i < columns.size(); i++) {
-            dataMap.put(columns.get(i), values.get(i));
-        }
-
-        return Query.builder()
-                .type(QueryType.INSERT)
-                .table(listener.getTableName())
-                .columns(columns)
-                .data(dataMap)
-                .build();
     }
 
     private Query parseDelete(CommonTokenStream tokens) throws SQLParseException {
@@ -139,13 +135,10 @@ public class SQLParserImpl implements SQLParser {
             PDelete parser = new PDelete(tokens);
             parser.removeErrorListeners();
             parser.addErrorListener(new BaseErrorListener() {
-                @SneakyThrows
                 @Override
                 public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol,
-                                        int line, int charPositionInLine,
-                                        String msg, RecognitionException e) {
-                    throw new SQLParseException("Syntax error in DELETE at line " + line +
-                            ":" + charPositionInLine + " - " + msg);
+                                        int line, int charPos, String msg, RecognitionException e) {
+                    throw new RuntimeException("Syntax error in DELETE at " + line + ":" + charPos + " - " + msg);
                 }
             });
 
@@ -160,10 +153,9 @@ public class SQLParserImpl implements SQLParser {
             return Query.builder()
                     .type(QueryType.DELETE)
                     .table(listener.getTableName())
+                    .rowIndex(listener.hasRowIndex() ? listener.getRowIndex() : null)
                     .whereClause(listener.hasWhereClause() ? listener.getWhereClause() : null)
                     .build();
-        } catch (SQLParseException e) {
-            throw e;
         } catch (Exception e) {
             throw new SQLParseException("Failed to parse DELETE query: " + e.getMessage());
         }

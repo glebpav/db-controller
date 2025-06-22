@@ -7,18 +7,38 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class SelectQueryListener extends PSelectBaseListener {
-
     private String tableName;
-    private final List<String> columns = new ArrayList<>();
+    private final List<Integer> columnIndices = new ArrayList<>();
     private String whereClause;
     private boolean hasWhereClause = false;
+
+    @Override
+    public void enterTable_name(PSelect.Table_nameContext ctx) {
+        this.tableName = ctx.ID().getText();
+    }
+
+    @Override
+    public void enterColumn_index(PSelect.Column_indexContext ctx) {
+        columnIndices.add(Integer.parseInt(ctx.NUMBER().getText()));
+    }
+
+    @Override
+    public void enterWhere_condition(PSelect.Where_conditionContext ctx) {
+        this.hasWhereClause = true;
+        this.whereClause = ctx.getText();
+    }
 
     public String getTableName() {
         return tableName;
     }
 
-    public List<String> getColumns() {
-        return columns;
+    public List<Integer> getColumnIndices() {
+        return columnIndices.isEmpty() && !isSelectAll() ?
+                List.of(0) : columnIndices; // По умолчанию возвращаем первую колонку
+    }
+
+    public boolean isSelectAll() {
+        return columnIndices.isEmpty();
     }
 
     public String getWhereClause() {
@@ -27,21 +47,5 @@ public class SelectQueryListener extends PSelectBaseListener {
 
     public boolean hasWhereClause() {
         return hasWhereClause;
-    }
-
-    @Override
-    public void enterTable_name(PSelect.Table_nameContext ctx) {
-        tableName = ctx.getText();
-    }
-
-    @Override
-    public void enterColumn(PSelect.ColumnContext ctx) {
-        columns.add(ctx.getText());
-    }
-
-    @Override
-    public void enterCondition(PSelect.ConditionContext ctx) {
-        hasWhereClause = true;
-        whereClause = ctx.getText();
     }
 }

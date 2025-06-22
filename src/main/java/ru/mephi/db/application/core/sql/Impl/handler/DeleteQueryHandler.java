@@ -15,24 +15,27 @@ public class DeleteQueryHandler implements QueryHandler {
 
     @Override
     public QueryResult handle(Query query) {
-        System.out.println("Обработка DELETE-запроса:");
-        System.out.println("Таблица: " + query.getTable());
-        if (query.getWhereClause() != null) {
-            System.out.println("WHERE: " + query.getWhereClause());
-        }
-
         try {
             String message;
-            if (query.getWhereClause() != null && !query.getWhereClause().isEmpty()) {
+            int deletedCount = 1; // В реальной реализации должно быть фактическое количество
+
+            if (query.getRowIndex() != null) {
+                message = String.format("Deleted row %d from %s",
+                        query.getRowIndex(), query.getTable());
+            } else if (query.getWhereClause() != null) {
                 message = String.format("Deleted from %s where %s",
                         query.getTable(), query.getWhereClause());
+                deletedCount = 1; // В реальной реализации должно быть фактическое количество
             } else {
                 message = String.format("Deleted all rows from %s", query.getTable());
+                deletedCount = 1; // В реальной реализации должно быть фактическое количество
             }
 
             return QueryResult.builder()
                     .success(true)
-                    .rows(Collections.emptyList())
+                    .rows(Collections.singletonList(
+                            Collections.singletonMap("deleted_rows", deletedCount)
+                    ))
                     .message(message)
                     .build();
         } catch (Exception e) {

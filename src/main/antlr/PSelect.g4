@@ -1,62 +1,60 @@
 parser grammar PSelect;
-options { tokenVocab=LCombine; }
 
-query :
-    select_stmt EOF
-;
+options {
+    tokenVocab = LCombine;
+}
 
-select_stmt:
-    select_expr KW_FROM table_name (KW_WHERE condition)? SEMICOLON?
-;
+query
+    : select_stmt EOF
+    ;
 
-select_expr :
-    KW_SELECT (column_list | KW_STAR)
-;
+select_stmt
+    : KW_SELECT select_list KW_FROM table_name (KW_WHERE where_condition)? SEMICOLON?
+    ;
 
-column_list :
-    column (KW_COMMA column)*
-;
+select_list
+    : KW_STAR
+    | column_index (KW_COMMA column_index)*
+    ;
 
-column :
-    (ID | aggregate_func) (KW_AS ID)?
-;
+table_name
+    : ID
+    ;
 
-aggregate_func :
-    (FC_SUM | FC_AVG | FC_MIN | FC_MAX | FC_CNT) LBRACE ID RBRACE
-;
+column_index
+    : NUMBER
+    ;
 
-condition :
-    expr
-    | LBRACE condition RBRACE
-    | condition OP_AND condition
-    | condition OP_OR condition
-;
+where_condition
+    : expression (logical_op expression)*
+    ;
 
-expr :
-    column OP_Equal value
-    | column OP_NotEqual value
-    | column OP_Less value
-    | column OP_More value
-    | column OP_EqualLess value
-    | column OP_EqualMore value
-    | column KW_IS (KW_NOT)? KW_NULL
-    | column FC_LIKE string_value
-;
+expression
+    : column_index comparison_operator value
+    | column_index KW_LIKE string_pattern
+    | LBRACE where_condition RBRACE
+    ;
 
-value :
-    column
-    | literal_value
-;
+comparison_operator
+    : OP_Equal
+    | OP_NotEqual
+    | OP_Less
+    | OP_More
+    | OP_EqualLess
+    | OP_EqualMore
+    ;
 
-literal_value :
-    NUMBER
-    | string_value
+logical_op
+    : OP_AND
+    | OP_OR
+    ;
+
+value
+    : STRING
+    | NUMBER
     | KW_NULL
-;
+    ;
 
-string_value : STRING;
-
-table_name :
-    ID
-    | KW_TABLE
-;
+string_pattern
+    : STRING // Паттерн для LIKE ('%test%', 'apple%' и т.д.)
+    ;

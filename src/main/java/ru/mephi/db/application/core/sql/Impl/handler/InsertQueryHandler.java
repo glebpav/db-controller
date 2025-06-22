@@ -5,7 +5,6 @@ import ru.mephi.db.domain.entity.Query;
 import ru.mephi.db.domain.entity.QueryResult;
 import ru.mephi.db.domain.valueobject.QueryType;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -17,34 +16,26 @@ public class InsertQueryHandler implements QueryHandler {
 
     @Override
     public QueryResult handle(Query query) {
-        System.out.println("Обработка INSERT-запроса:");
-        System.out.println("Таблица: " + query.getTable());
-        System.out.println("Колонки: " + query.getColumns());
-        System.out.println("Значения: " + query.getData());
-
         try {
-            Map<String, Object> valuesMap = query.getData();
-            int insertedCount = 1;
+            List<Object> values = query.getValues();
+            String tableName = query.getTable();
 
-            String message = String.format("Inserted into %s: %s values %s",
-                    query.getTable(),
-                    query.getColumns(),
-                    valuesMap);
+            // Здесь должна быть реальная логика вставки в таблицу
+            System.out.printf("Inserting into %s: %s%n", tableName, values);
 
             return QueryResult.builder()
                     .success(true)
+                    .message(String.format("Inserted 1 row into %s", tableName))
                     .rows(List.of(Map.of(
-                            "inserted_rows", insertedCount,
-                            "generated_keys", Collections.emptyList()
+                            "inserted_rows", 1,
+                            "values", values
                     )))
-                    .message(message)
                     .build();
-
         } catch (Exception e) {
             return QueryResult.builder()
                     .success(false)
-                    .rows(Collections.emptyList())
                     .message("Failed to execute INSERT: " + e.getMessage())
+                    .rows(List.of())
                     .build();
         }
     }

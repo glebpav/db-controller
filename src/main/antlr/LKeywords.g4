@@ -17,13 +17,14 @@ KW_SHOW : [Ss][Hh][Oo][Ww] ;
 KW_TABLES       : T A B L E S;
 KW_CREATE       : C R E A T E;
 KW_TABLE        : T A B L E;
+KW_DROP         : D R O P;
 KW_NOT          : N O T;
 KW_DEFAULT      : D E F A U L T;
 KW_PRIMARY      : P R I M A R Y;
 KW_KEY          : K E Y;
 KW_FOREIGN      : F O R E I G N;
 KW_REFERENCES   : R E F E R E N C E S;
-
+KW_LIKE         : L I K E;
 KW_INT          : I N T;
 KW_FLOAT        : F L O A T;
 KW_TEXT         : T E X T;

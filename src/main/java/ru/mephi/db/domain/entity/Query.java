@@ -11,10 +11,14 @@ import java.util.Map;
 @Builder
 public class Query {
     QueryType type;
+
     String table;
-    List<String> columns;
     String whereClause;
-    Map<String, Object> data;
+    List<Integer> columnIndices;
+    List<Object> values;
+    Integer rowIndex;
+    List<String> columnTypes;
+    String databasePath;
+    String databaseName;
     String transactionName;
-    String databaseName; // Добавляем новое поле
 }

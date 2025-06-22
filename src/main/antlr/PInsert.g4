@@ -1,22 +1,22 @@
 parser grammar PInsert;
 
-options { tokenVocab=LCombine; }
+options {
+tokenVocab = LCombine;
+}
 
-query : insert_stmt EOF;
-
-insert_stmt:
-    KW_INSERT KW_INTO table_name
-    (
-      (column_list KW_VALUES LBRACE value_list RBRACE)
-      | KW_VALUES LBRACE value_list RBRACE
-    )
-    SEMICOLON
+query
+: insert_stmt EOF
 ;
 
-table_name : ID;
+insert_stmt
+: KW_INSERT KW_INTO table_name KW_VALUES LBRACE value (KW_COMMA value)* RBRACE SEMICOLON?
+;
 
-column_list : LBRACE ID (KW_COMMA ID)* RBRACE;
+table_name
+: ID
+;
 
-value_list : value (KW_COMMA value)*;
-
-value : NUMBER | STRING | KW_NULL;
+value
+: STRING
+| NUMBER
+;

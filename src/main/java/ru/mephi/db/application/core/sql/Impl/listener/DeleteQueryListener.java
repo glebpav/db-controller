@@ -5,7 +5,8 @@ import ru.mephi.sql.parser.PDelete;
 
 public class DeleteQueryListener extends PDeleteBaseListener {
     private String tableName;
-    private String whereClause;
+    private Integer rowIndex;
+    private String whereCondition;
     private boolean hasWhere = false;
 
     @Override
@@ -14,22 +15,33 @@ public class DeleteQueryListener extends PDeleteBaseListener {
     }
 
     @Override
-    public void enterDelete_stmt(PDelete.Delete_stmtContext ctx) {
-        if (ctx.KW_WHERE() != null && ctx.condition() != null) {
-            this.hasWhere = true;
-            this.whereClause = ctx.condition().getText();
-        }
+    public void enterRow_index(PDelete.Row_indexContext ctx) {
+        this.rowIndex = Integer.parseInt(ctx.NUMBER().getText());
+    }
+
+    @Override
+    public void enterWhere_condition(PDelete.Where_conditionContext ctx) {
+        this.hasWhere = true;
+        this.whereCondition = ctx.getText();
     }
 
     public String getTableName() {
         return tableName;
     }
 
+    public Integer getRowIndex() {
+        return rowIndex;
+    }
+
     public String getWhereClause() {
-        return whereClause;
+        return whereCondition;
     }
 
     public boolean hasWhereClause() {
         return hasWhere;
+    }
+
+    public boolean hasRowIndex() {
+        return rowIndex != null;
     }
 }
