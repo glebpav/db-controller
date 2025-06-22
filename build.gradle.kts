@@ -41,9 +41,12 @@ dependencies {
     antlr(libs.antlr)
 
     testImplementation(libs.junit)
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.2")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.9.2")
 
     testImplementation(libs.mockito.core)
     testImplementation(libs.mockito.junit)
+    testImplementation("org.mockito:mockito-junit-jupiter:4.11.0")
 
     testImplementation(libs.assertJ.core)
 }
@@ -108,3 +111,4 @@ tasks.create("integrationTest", Test::class.java) {
 tasks.test {
     configureTestTask(this)
 }
+
