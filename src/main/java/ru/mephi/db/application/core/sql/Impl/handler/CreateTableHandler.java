@@ -30,10 +30,10 @@ public class CreateTableHandler implements QueryHandler {
 
 
         String tableFilePath = dbFilePath + "/" + tableName + ".txt";
-        //  dataRepository.createTableFile(tableFilePath, tableName, columnTypes);
+        dataRepository.createTableFile(tableFilePath, tableName, columnTypes);
 
 
-        // dataRepository.addTableReference(dbFilePath, tableFilePath);
+        dataRepository.addTableReference(dbFilePath, tableFilePath);
 
 
         return null;
