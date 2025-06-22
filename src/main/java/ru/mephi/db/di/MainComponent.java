@@ -1,6 +1,7 @@
 package ru.mephi.db.di;
 
 import dagger.Component;
+import ru.mephi.db.application.core.ConnectionConfig;
 import ru.mephi.db.application.usecase.ExitDatabaseUseCase;
 import ru.mephi.db.application.usecase.HandleUserInputUseCase;
 import ru.mephi.db.application.usecase.InitializeDatabaseUseCase;
@@ -24,4 +25,6 @@ public interface MainComponent {
     HandleUserInputUseCase getHandleUserInputUseCase();
 
     ExitDatabaseUseCase getExitDatabaseUseCase();
+
+    ConnectionConfig getConnectionConfig();
 }

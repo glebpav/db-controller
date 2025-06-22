@@ -2,6 +2,7 @@ package ru.mephi.db.di;
 
 import dagger.Module;
 import dagger.Provides;
+import ru.mephi.db.application.core.ConnectionConfig;
 import ru.mephi.db.infrastructure.Constants;
 import ru.mephi.db.application.core.sql.QueryExecutor;
 import ru.mephi.db.application.core.sql.Impl.QueryExecutorImpl;
@@ -24,6 +25,12 @@ public class AppModule {
     @Singleton
     public Scanner provideScanner() {
         return new Scanner(System.in);
+    }
+
+    @Provides
+    @Singleton
+    public ConnectionConfig provideConnectionConfig() {
+        return new ConnectionConfig();
     }
 
     public PrintStream providePrintStream() {

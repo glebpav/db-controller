@@ -7,7 +7,7 @@ import ru.mephi.db.di.qulifier.CommandPriority;
 import ru.mephi.db.domain.valueobject.Priority;
 import ru.mephi.db.exception.DatabaseException;
 import ru.mephi.db.application.core.sql.SQLParser;
-import ru.mephi.db.domain.entity.Query;
+import ru.mephi.db.domain.entity.query.Query;
 import ru.mephi.db.domain.entity.QueryResult;
 
 import javax.inject.Inject;

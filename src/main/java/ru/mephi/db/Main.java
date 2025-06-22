@@ -1,5 +1,6 @@
 package ru.mephi.db;
 
+import ru.mephi.db.application.core.ConnectionConfig;
 import ru.mephi.db.di.DaggerMainComponent;
 import ru.mephi.db.di.MainComponent;
 import ru.mephi.db.exception.DatabaseException;
@@ -42,6 +43,8 @@ public class Main {
 
         File db = new File(args[0]);
         Path dbPath = db.toPath();
+        component.getConnectionConfig().setDbPath(args[0]);
+
         return component.getInitializeDatabaseUseCase().execute(dbPath);
     }
 
