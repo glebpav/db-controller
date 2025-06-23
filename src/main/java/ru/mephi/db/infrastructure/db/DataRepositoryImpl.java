@@ -191,12 +191,11 @@ public class DataRepositoryImpl implements DataRepository {
         }
 
         // Получаем путь к Master DB (в той же директории, где создается таблица)
-        Path tablePath = Paths.get(tableFilePath);
-        Path masterDbPath = tablePath.getParent().resolve("Master.txt");
+        String masterDbPath = path + "\\Master.txt";
 
         // Если Master DB не существует - создаем ее
-        if (!Files.exists(masterDbPath)) {
-            createDatabaseFile(masterDbPath.toString(), "Master");
+        if (!Files.exists(Paths.get(masterDbPath))) {
+            createDatabaseFile(masterDbPath, "Master");
         }
 
         if (tableName.length() > 50) {
