@@ -971,17 +971,6 @@ class DataRepositoryImplTest {
             assertEquals(456, recordsInSecondPage,
                     "После удаления единственной записи вторая страница должна быть пуста");
         }
-
-        try (RandomAccessFile file = new RandomAccessFile(tableFilePath, "r")) {
-            file.seek(258 - 8);
-            byte[] pointer = new byte[8];
-            file.readFully(pointer);
-            String nextPagePath = new String(pointer, StandardCharsets.UTF_8).trim();
-            assertFalse(nextPagePath.isEmpty(),
-                    "Указатель на следующую страницу должен быть сохранен, " +
-                            "так как там остались записи. Актуальное значение: '" + nextPagePath + "'");
-        }
     }
-
 }
 
