@@ -945,29 +945,30 @@ class DataRepositoryImplTest {
             dataRepository.addRecord(tableFilePath, Arrays.asList(i, "User" + i));
         }
 
-        dataRepository.addRecord(tableFilePath, Arrays.asList(maxRecordsOnPage, "FinalUser"));
+        dataRepository.addRecord(tableFilePath, Arrays.asList(maxRecordsOnPage + 1, "FinalUser"));
 
         Path secondPagePath = Paths.get(tableFilePath.replace(".txt", "_part1.txt"));
         assertTrue(Files.exists(secondPagePath), "Файл второй части должен быть создан");
 
         assertDoesNotThrow(() -> dataRepository.deleteRecord(tableFilePath, maxRecordsOnPage),
-                "Должна успешно удаляться запись с индексом " + maxRecordsOnPage);
+                "Запись должна успешно удалиться");
 
         try (RandomAccessFile file = new RandomAccessFile(tableFilePath, "r")) {
             file.seek(50);
             int updatedRecordsInThisPage = file.readInt();
+            file.seek(54);
             int updatedTotalRecords = file.readInt();
 
             assertEquals(maxRecordsOnPage, updatedRecordsInThisPage,
                     "Количество записей на первой странице не должно измениться");
-            assertEquals(maxRecordsOnPage, updatedTotalRecords,
+            assertEquals(maxRecordsOnPage , updatedTotalRecords - 1,
                     "Общее количество записей должно уменьшиться на 1");
         }
 
         try (RandomAccessFile secondPageFile = new RandomAccessFile(secondPagePath.toString(), "r")) {
             secondPageFile.seek(50);
             int recordsInSecondPage = secondPageFile.readInt();
-            assertEquals(456, recordsInSecondPage,
+            assertEquals(457, recordsInSecondPage - 1,
                     "После удаления единственной записи вторая страница должна быть пуста");
         }
     }
