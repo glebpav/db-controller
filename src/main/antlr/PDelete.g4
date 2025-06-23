@@ -32,7 +32,7 @@ where_condition
 expression
     : column_index comparison_operator value
     | column_index KW_LIKE string_pattern
-    | LBRACE where_condition RBRACE
+    | LPAREN where_condition RPAREN
     ;
 
 comparison_operator

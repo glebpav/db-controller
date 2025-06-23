@@ -10,14 +10,15 @@ import java.util.Map;
 @Value
 @Builder
 public class Query {
-    QueryType type;
 
+
+    QueryType type;
+    List<String> schema;
     String table;
     String whereClause;
     List<Integer> columnIndices;
     List<Object> values;
     Integer rowIndex;
-    List<String> columnTypes;
     String databasePath;
     String databaseName;
     String transactionName;

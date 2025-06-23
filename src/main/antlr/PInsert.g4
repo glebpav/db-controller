@@ -9,7 +9,7 @@ query
 ;
 
 insert_stmt
-: KW_INSERT KW_INTO table_name KW_VALUES LBRACE value (KW_COMMA value)* RBRACE SEMICOLON?
+: KW_INSERT KW_INTO table_name KW_VALUES LPAREN value (KW_COMMA value)* RPAREN SEMICOLON?
 ;
 
 table_name

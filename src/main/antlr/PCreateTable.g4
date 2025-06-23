@@ -1,23 +1,26 @@
 parser grammar PCreateTable;
-
 options {
-tokenVocab = LCombine;
+    tokenVocab = LCombine;
 }
 
 query
-: create_table_stmt EOF
-;
+    : create_table_stmt EOF
+    ;
 
 create_table_stmt
-: KW_CREATE KW_TABLE table_name LBRACE data_type (KW_COMMA data_type)* RBRACE SEMICOLON?
-;
+    : KW_CREATE KW_TABLE table_name
+      LPAREN column_type_list RPAREN SEMICOLON?
+    ;
 
 table_name
-: ID
-;
+    : ID
+    ;
 
-data_type
-: KW_INT
-| KW_TEXT
-| KW_VARCHAR LBRACE NUMBER RBRACE
-;
+column_type_list
+    : column_type (KW_COMMA column_type)*
+    ;
+
+column_type returns [String type]
+    : KW_INT { $type = "int"; }
+    | KW_STR LPAREN num=NUMBER RPAREN { $type = "str_" + $num.text; }
+    ;

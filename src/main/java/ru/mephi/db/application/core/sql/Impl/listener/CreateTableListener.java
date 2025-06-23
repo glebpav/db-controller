@@ -8,24 +8,20 @@ import java.util.List;
 
 public class CreateTableListener extends PCreateTableBaseListener {
     private String tableName;
-    private final List<String> columnTypes = new ArrayList<>();
+    private final List<String> shema = new ArrayList<>();
 
     @Override
     public void enterTable_name(PCreateTable.Table_nameContext ctx) {
-        tableName = ctx.getText();
+        this.tableName = ctx.ID().getText();
     }
 
     @Override
-    public void enterData_type(PCreateTable.Data_typeContext ctx) {
-        String colType = ctx.getText().toUpperCase();
-        columnTypes.add(colType);
+    public void enterColumn_type_list(PCreateTable.Column_type_listContext ctx) {
+        for (PCreateTable.Column_typeContext typeCtx : ctx.column_type()) {
+            shema.add(typeCtx.type);
+        }
     }
 
-    public String getTableName() {
-        return tableName;
-    }
-
-    public List<String> getColumnTypes() {
-        return columnTypes;
-    }
+    public String getTableName() { return tableName; }
+    public List<String> getShema() { return shema; }
 }

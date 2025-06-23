@@ -1,7 +1,7 @@
 parser grammar PDropTable;
 
 options {
-tokenVocab = LCombine;
+    tokenVocab = LCombine;
 }
 
 query
@@ -14,4 +14,5 @@ drop_table_stmt
 
 table_name
 : ID
+ | STRING  // Add support for quoted identifiers
 ;

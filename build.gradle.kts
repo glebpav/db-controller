@@ -29,6 +29,10 @@ dependencies {
     testAnnotationProcessor(libs.lombok)
     "integrationTestAnnotationProcessor"(libs.lombok)
 
+    antlr("org.antlr:antlr4:4.13.2")
+    implementation("org.antlr:antlr4-runtime:4.13.2")
+
+
     implementation(libs.dagger)
     annotationProcessor(libs.dagger.compiler)
     testAnnotationProcessor(libs.dagger.compiler)

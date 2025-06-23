@@ -25,7 +25,6 @@ public class InsertQueryListener extends PInsertBaseListener {
                 values.add(Long.parseLong(num));
             }
         } else if (ctx.STRING() != null) {
-            // Удаляем кавычки в начале и конце строки
             values.add(ctx.STRING().getText().replaceAll("^'|'$", ""));
         }
     }

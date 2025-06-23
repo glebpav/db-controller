@@ -7,6 +7,7 @@ import org.antlr.v4.runtime.tree.ParseTreeWalker;
 import ru.mephi.db.application.core.sql.SQLParser;
 import ru.mephi.db.domain.entity.Query;
 import ru.mephi.db.domain.valueobject.QueryType;
+import ru.mephi.db.infrastructure.db.DataRepositoryImpl;
 import ru.mephi.db.exception.SQLParseException;
 import ru.mephi.db.application.core.sql.Impl.listener.*;
 import ru.mephi.sql.parser.*;
@@ -15,9 +16,12 @@ import javax.inject.Inject;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @AllArgsConstructor(onConstructor_ = @Inject)
 public class SQLParserImpl implements SQLParser {
+    private final DataRepositoryImpl dataRepository = new DataRepositoryImpl();
+
     @Override
     public Query parse(String sql) throws SQLParseException {
         try {
@@ -42,6 +46,8 @@ public class SQLParserImpl implements SQLParser {
                 return parseShowFiles(tokens);
             }else if(upperSql.startsWith("CREATE TABLE")){
                 return parseCreateTable(tokens);
+            } else if (upperSql.startsWith("DROP TABLE")) {
+            return parseDropTable(tokens);
             }
             else if (upperSql.startsWith("SHOW TABLES")) {
                 return parseShowTables(tokens);
@@ -70,10 +76,34 @@ public class SQLParserImpl implements SQLParser {
             return Query.builder()
                     .type(QueryType.CREATE_TABLE)
                     .table(listener.getTableName())
-                    .columnTypes(listener.getColumnTypes())
+                    .schema(listener.getShema())
                     .build();
         } catch (Exception e) {
             throw new SQLParseException("Failed to parse CREATE TABLE: " + e.getMessage());
+        }
+    }
+    private Query parseDropTable(CommonTokenStream tokens) throws SQLParseException {
+        try {
+            PDropTable parser = new PDropTable(tokens);
+            parser.removeErrorListeners();
+            parser.addErrorListener(new BaseErrorListener() {
+                @Override
+                public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol,
+                                        int line, int charPos, String msg, RecognitionException e) {
+                    throw new RuntimeException("Syntax error in DROP TABLE at " + line + ":" + charPos + " - " + msg);
+                }
+            });
+
+            PDropTable.QueryContext ctx = parser.query();
+            DropTableListener listener = new DropTableListener();
+            ParseTreeWalker.DEFAULT.walk(listener, ctx);
+
+            return Query.builder()
+                    .type(QueryType.DROP_TABLE)
+                    .table(listener.getTableName())
+                    .build();
+        } catch (Exception e) {
+            throw new SQLParseException("Failed to parse DROP TABLE: " + e.getMessage());
         }
     }
 
@@ -120,6 +150,9 @@ public class SQLParserImpl implements SQLParser {
             InsertQueryListener listener = new InsertQueryListener();
             ParseTreeWalker.DEFAULT.walk(listener, queryContext);
 
+            // Сразу вызываем добавление записи после парсинга
+           dataRepository.addRecord(listener.getTableName(), listener.getValues());
+
             return Query.builder()
                     .type(QueryType.INSERT)
                     .table(listener.getTableName())
@@ -129,7 +162,6 @@ public class SQLParserImpl implements SQLParser {
             throw new SQLParseException("Failed to parse INSERT query: " + e.getMessage());
         }
     }
-
     private Query parseDelete(CommonTokenStream tokens) throws SQLParseException {
         try {
             PDelete parser = new PDelete(tokens);

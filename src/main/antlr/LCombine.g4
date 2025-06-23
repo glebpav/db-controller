@@ -11,8 +11,8 @@ import
 ;
 
 KW_NULL: 'NULL';
-LBRACE: '(';
-RBRACE: ')';
+LPAREN: '(';
+RPAREN: ')';
 SEMICOLON: ';';
 KW_SHOW   : 'SHOW';
 KW_FILES  : 'FILES';

@@ -9,20 +9,20 @@ query
     ;
 
 select_stmt
-    : KW_SELECT select_list KW_FROM table_name (KW_WHERE where_condition)? SEMICOLON?
+    : KW_SELECT select_columns KW_FROM table_name (KW_WHERE where_condition)? SEMICOLON?
     ;
 
-select_list
-    : KW_STAR
-    | column_index (KW_COMMA column_index)*
+select_columns
+    : '*'                          # AllColumns
+    | column_list                  # ColumnList
+    ;
+
+column_list
+    : NUMBER (KW_COMMA NUMBER)*
     ;
 
 table_name
     : ID
-    ;
-
-column_index
-    : NUMBER
     ;
 
 where_condition
@@ -30,9 +30,8 @@ where_condition
     ;
 
 expression
-    : column_index comparison_operator value
-    | column_index KW_LIKE string_pattern
-    | LBRACE where_condition RBRACE
+    : NUMBER comparison_operator value          # ColumnComparison
+    | NUMBER KW_LIKE string_pattern             # ColumnLike
     ;
 
 comparison_operator
@@ -56,5 +55,5 @@ value
     ;
 
 string_pattern
-    : STRING // Паттерн для LIKE ('%test%', 'apple%' и т.д.)
+    : STRING
     ;

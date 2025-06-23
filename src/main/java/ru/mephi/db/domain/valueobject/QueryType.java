@@ -9,5 +9,6 @@ public enum QueryType {
     ROLLBACK,
     SHOW_FILES,
     SHOW_TABLES,
+    DROP_TABLE,
     CREATE_TABLE;
 }

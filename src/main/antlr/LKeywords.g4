@@ -2,6 +2,7 @@ lexer grammar LKeywords;
 
 import LLetters;
 
+
 KW_BEGIN: B E G I N | 'begin' | 'Begin';
 KW_TRANSACTION: T R A N S A C T I O N | 'transaction' | 'Transaction';
 KW_FROM         : F R O M    ;
@@ -26,7 +27,8 @@ KW_FOREIGN      : F O R E I G N;
 KW_REFERENCES   : R E F E R E N C E S;
 KW_LIKE         : L I K E;
 KW_INT          : I N T;
-KW_FLOAT        : F L O A T;
+KW_STR          : S T R;
+NUMBER  : [0-9]+ ('.' [0-9]+)?;
 KW_TEXT         : T E X T;
 KW_VARCHAR      : V A R C H A R;
 KW_COMMIT       : C O M M I T;

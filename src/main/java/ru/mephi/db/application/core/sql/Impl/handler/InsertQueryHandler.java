@@ -1,14 +1,16 @@
 package ru.mephi.db.application.core.sql.Impl.handler;
-
+import ru.mephi.db.application.adapter.db.DataRepository;
 import ru.mephi.db.application.core.sql.QueryHandler;
 import ru.mephi.db.domain.entity.Query;
 import ru.mephi.db.domain.entity.QueryResult;
 import ru.mephi.db.domain.valueobject.QueryType;
-
+import ru.mephi.db.infrastructure.db.DataRepositoryImpl;
 import java.util.List;
 import java.util.Map;
 
 public class InsertQueryHandler implements QueryHandler {
+
+    private final DataRepository dataRepository = new DataRepositoryImpl();
     @Override
     public boolean canHandle(QueryType type) {
         return type == QueryType.INSERT;
@@ -18,10 +20,9 @@ public class InsertQueryHandler implements QueryHandler {
     public QueryResult handle(Query query) {
         try {
             List<Object> values = query.getValues();
-            String tableName = query.getTable();
+            String tableName = query.getTable() + ".txt";
 
-            // Здесь должна быть реальная логика вставки в таблицу
-            System.out.printf("Inserting into %s: %s%n", tableName, values);
+            dataRepository.addRecord(tableName, values);
 
             return QueryResult.builder()
                     .success(true)
