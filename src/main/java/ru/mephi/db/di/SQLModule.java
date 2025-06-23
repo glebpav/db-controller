@@ -26,7 +26,7 @@ public abstract class SQLModule {
     public static QueryExecutor provideQueryExecutor(ConnectionConfig connectionConfig, DataRepository dataRepository) {
         return new QueryExecutorImpl(List.of(
                 new CreateTableHandler(dataRepository, connectionConfig),
-                new SelectQueryHandler(),
+                new SelectQueryHandler(dataRepository, connectionConfig),
                 new InsertQueryHandler(dataRepository, connectionConfig),
                 new DeleteQueryHandler(),
                 new BeginTransactionHandler(),

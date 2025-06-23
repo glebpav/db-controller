@@ -1,16 +1,25 @@
 package ru.mephi.db.application.core.sql.Impl.handler;
 
+import lombok.RequiredArgsConstructor;
 import ru.mephi.db.application.core.sql.QueryHandler;
 import ru.mephi.db.domain.entity.Query;
 import ru.mephi.db.domain.entity.QueryResult;
 import ru.mephi.db.domain.valueobject.QueryType;
+import ru.mephi.db.application.adapter.db.DataRepository;
+import ru.mephi.db.application.core.ConnectionConfig;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+@RequiredArgsConstructor
 public class SelectQueryHandler implements QueryHandler {
+    private final DataRepository dataRepository;
+    private final ConnectionConfig connectionconfig ;
+
+
     @Override
     public boolean canHandle(QueryType type) {
         return type == QueryType.SELECT;
@@ -19,15 +28,26 @@ public class SelectQueryHandler implements QueryHandler {
     @Override
     public QueryResult handle(Query query) {
         try {
-            List<Map<String, Object>> allData = getMockData(query.getTable());
-            List<Map<String, Object>> filteredData = filterData(allData, query);
-            List<Map<String, Object>> resultData = selectColumns(filteredData, query);
+            String tableName = query.getTable();
+            String dbFilePath = connectionconfig.getDbPath();
+            String tableFilePath = dbFilePath + "\\" + tableName + ".txt";
+            List<Object> values = query.getValues();
+            dataRepository.addRecord(tableFilePath, values);
+            List<Map<String, Object>> resultData;
+
+            if (query.getWhereClause() != null) {
+
+                List<Integer> matchingIndices = findMatchingIndices(query);
+                resultData = getRecordsByIndices(query.getTable(), matchingIndices, query.getColumnIndices());
+            } else {
+                List<Integer> allIndices = dataRepository.getAllRecordIndices(query.getTable());
+                resultData = getRecordsByIndices(query.getTable(), allIndices, query.getColumnIndices());
+            }
 
             return QueryResult.builder()
                     .success(true)
                     .rows(resultData)
-                    .message(String.format("Selected %d rows from %s",
-                            resultData.size(), query.getTable()))
+                    .message(String.format("Selected %d rows from %s", resultData.size(), query.getTable()))
                     .build();
         } catch (Exception e) {
             return QueryResult.builder()
@@ -38,130 +58,64 @@ public class SelectQueryHandler implements QueryHandler {
         }
     }
 
-    private List<Map<String, Object>> getMockData(String tableName) {
-        List<Map<String, Object>> data = new ArrayList<>();
+    private List<Integer> findMatchingIndices(Query query) throws IOException {
+        String whereClause = query.getWhereClause();
+        String tablePath = query.getTable();
 
-        if ("products".equals(tableName)) {
-            Map<String, Object> row1 = new HashMap<>();
-            row1.put("0", 1);       // ID
-            row1.put("1", "Apple"); // Название
-            row1.put("2", 10.5);    // Цена
-            data.add(row1);
+        if (whereClause.contains("LIKE")) {
+            String[] parts = whereClause.split("LIKE");
+            int columnIndex = Integer.parseInt(parts[0].trim());
+            String pattern = parts[1].trim().replaceAll("'", "");
+            boolean caseSensitive = !pattern.toLowerCase().equals(pattern);
+            return dataRepository.findRecordsByPattern(tablePath, columnIndex, pattern, caseSensitive);
+        } else if (whereClause.contains("=") || whereClause.contains(">") || whereClause.contains("<")) {
 
-            Map<String, Object> row2 = new HashMap<>();
-            row2.put("0", 2);
-            row2.put("1", "Banana");
-            row2.put("2", 5.3);
-            data.add(row2);
-        }
-        return data;
-    }
+            String operator = extractOperator(whereClause);
+            String[] parts = whereClause.split(operator);
+            int column1 = Integer.parseInt(parts[0].trim());
 
-    private List<Map<String, Object>> filterData(List<Map<String, Object>> data, Query query) {
-        if (query.getWhereClause() == null) {
-            return data;
-        }
-
-        List<Map<String, Object>> filtered = new ArrayList<>();
-        for (Map<String, Object> row : data) {
-            if (matchesWhereCondition(row, query.getWhereClause())) {
-                filtered.add(row);
+            if (parts[1].trim().matches("\\d+")) { // Если второй операнд — число (индекс столбца)
+                int column2 = Integer.parseInt(parts[1].trim());
+                return dataRepository.findRecordsByCondition(tablePath, column1, operator, column2);
+            } else { // Если второй операнд — константа (например, 'value')
+                String value = parts[1].trim().replaceAll("'", "");
+                return dataRepository.findRecordsByConstant(tablePath, column1, operator, value);
             }
         }
-        return filtered;
+        throw new IllegalArgumentException("Unsupported WHERE condition: " + whereClause);
     }
 
-    private boolean matchesWhereCondition(Map<String, Object> row, String whereClause) {
-        // Упрощенная проверка условий
-        if (whereClause.contains("LIKE")) {
-            return handleLikeCondition(row, whereClause);
-        } else if (whereClause.contains("=")) {
-            return handleEqualsCondition(row, whereClause);
-        } else if (whereClause.contains(">")) {
-            return handleGreaterThanCondition(row, whereClause);
-        } else if (whereClause.contains("<")) {
-            return handleLessThanCondition(row, whereClause);
-        }
-        return false;
+
+    private String extractOperator(String condition) {
+        if (condition.contains("=")) return "=";
+        if (condition.contains(">")) return ">";
+        if (condition.contains("<")) return "<";
+        throw new IllegalArgumentException("Unknown operator in condition: " + condition);
     }
 
-    private boolean handleLikeCondition(Map<String, Object> row, String condition) {
-        String[] parts = condition.split("LIKE");
-        int columnIndex = Integer.parseInt(parts[0].trim());
-        String pattern = parts[1].trim().replaceAll("'", "");
-
-        String value = row.get(String.valueOf(columnIndex)).toString();
-        pattern = pattern.replace("%", ".*").replace("_", ".");
-
-        return value.matches(pattern);
-    }
-
-    private boolean handleEqualsCondition(Map<String, Object> row, String condition) {
-        String[] parts = condition.split("=");
-        int columnIndex = Integer.parseInt(parts[0].trim());
-        String expectedValue = parts[1].trim().replaceAll("'", "");
-
-        Object actualValue = row.get(String.valueOf(columnIndex));
-        return actualValue != null && actualValue.toString().equals(expectedValue);
-    }
-
-    private boolean handleGreaterThanCondition(Map<String, Object> row, String condition) {
-        String[] parts = condition.split(">");
-        int columnIndex = Integer.parseInt(parts[0].trim());
-        String valueStr = parts[1].trim().replaceAll("'", "");
-
-        Object value = row.get(String.valueOf(columnIndex));
-        if (value instanceof Number && isNumeric(valueStr)) {
-            double rowValue = ((Number) value).doubleValue();
-            double conditionValue = Double.parseDouble(valueStr);
-            return rowValue > conditionValue;
-        }
-        return false;
-    }
-
-    private boolean handleLessThanCondition(Map<String, Object> row, String condition) {
-        String[] parts = condition.split("<");
-        int columnIndex = Integer.parseInt(parts[0].trim());
-        String valueStr = parts[1].trim().replaceAll("'", "");
-
-        Object value = row.get(String.valueOf(columnIndex));
-        if (value instanceof Number && isNumeric(valueStr)) {
-            double rowValue = ((Number) value).doubleValue();
-            double conditionValue = Double.parseDouble(valueStr);
-            return rowValue < conditionValue;
-        }
-        return false;
-    }
-
-    private boolean isNumeric(String str) {
-        try {
-            Double.parseDouble(str);
-            return true;
-        } catch (NumberFormatException e) {
-            return false;
-        }
-    }
-
-    private List<Map<String, Object>> selectColumns(
-            List<Map<String, Object>> data,
-            Query query) {
+    private List<Map<String, Object>> getRecordsByIndices(
+            String tablePath,
+            List<Integer> indices,
+            List<Integer> columnIndices
+    ) throws IOException {
         List<Map<String, Object>> result = new ArrayList<>();
 
-        for (Map<String, Object> row : data) {
-            Map<String, Object> selectedRow = new HashMap<>();
+        for (int index : indices) {
+            List<Object> record = dataRepository.readRecord(tablePath, index, 0); // Предполагаем, что 0 — это смещение
+            Map<String, Object> row = new HashMap<>();
 
-            if (query.getColumnIndices() == null || query.getColumnIndices().isEmpty()) {
-                selectedRow.putAll(row);
+            if (columnIndices == null || columnIndices.isEmpty()) {
+                for (int i = 0; i < record.size(); i++) {
+                    row.put(String.valueOf(i), record.get(i));
+                }
             } else {
-                for (Integer colIndex : query.getColumnIndices()) {
-                    String key = String.valueOf(colIndex);
-                    if (row.containsKey(key)) {
-                        selectedRow.put(key, row.get(key));
+                for (int colIndex : columnIndices) {
+                    if (colIndex < record.size()) {
+                        row.put(String.valueOf(colIndex), record.get(colIndex));
                     }
                 }
             }
-
-            result.add(selectedRow);
+            result.add(row);
         }
         return result;
     }
