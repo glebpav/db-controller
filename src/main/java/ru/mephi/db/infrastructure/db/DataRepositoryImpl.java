@@ -46,7 +46,7 @@ public class DataRepositoryImpl implements DataRepository {
      */
     @Override
     public void createDatabaseFile(String dbFilePath, String dbName) throws IOException {
-        validateTxtExtension(dbFilePath);
+        //validateTxtExtension(dbFilePath);
 
         Path path = Paths.get(dbFilePath).getParent();
         if (path != null && !Files.exists(path)) {
@@ -76,8 +76,8 @@ public class DataRepositoryImpl implements DataRepository {
      */
     @Override
     public void addTableReference(String dbFilePath, String tableFilePath) throws IOException {
-        validateTxtExtension(dbFilePath);
-        validateTxtExtension(tableFilePath);
+        //validateTxtExtension(dbFilePath);
+        //validateTxtExtension(tableFilePath);
 
         Path dbPath = Paths.get(dbFilePath).toAbsolutePath().normalize();
         Path tablePath = Paths.get(tableFilePath).toAbsolutePath().normalize();
@@ -131,7 +131,7 @@ public class DataRepositoryImpl implements DataRepository {
      */
     @Override
     public boolean isTableExists(String dbFilePath, String tableFilePath) throws IOException {
-        validateTxtExtension(dbFilePath);
+        //validateTxtExtension(dbFilePath);
 
         Path dbPath = Paths.get(dbFilePath).toAbsolutePath().normalize();
         if (!Files.exists(dbPath)) {
@@ -185,7 +185,7 @@ public class DataRepositoryImpl implements DataRepository {
      */
     @Override
     public void createTableFile(String tableFilePath, String tableName, List<String> schema) throws IOException {
-        validateTxtExtension(tableFilePath);
+        //validateTxtExtension(tableFilePath);
         validateSchema(schema);
 
         Path path = Paths.get(tableFilePath).getParent();
@@ -231,7 +231,7 @@ public class DataRepositoryImpl implements DataRepository {
     public void deleteDatabaseFile(String dbFilePath) throws IOException {
         Path dbPath = Paths.get(dbFilePath).toAbsolutePath().normalize();
 
-        validateTxtExtension(dbPath.toString());
+        //validateTxtExtension(dbPath.toString());
 
         if (!Files.exists(dbPath)) {
             throw new FileNotFoundException("Database file not found: " + dbPath);
@@ -278,7 +278,7 @@ public class DataRepositoryImpl implements DataRepository {
     @Override
     public void deleteTableFile(String tableFilePath) throws IOException {
         Path tablePath = Paths.get(tableFilePath).normalize();
-        validateTxtExtension(tableFilePath);
+        //validateTxtExtension(tableFilePath);
 
         if (!Files.exists(tablePath)) {
             throw new IOException("Table file not found: " + tableFilePath);
@@ -367,8 +367,8 @@ public class DataRepositoryImpl implements DataRepository {
      */
     @Override
     public void removeTableReference(String dbFilePath, String tableFilePath) throws IOException {
-        validateTxtExtension(dbFilePath);
-        validateTxtExtension(tableFilePath);
+        //validateTxtExtension(dbFilePath);
+        //validateTxtExtension(tableFilePath);
 
         Path dbPath = Paths.get(dbFilePath);
         Path targetPath = Paths.get(tableFilePath).normalize();
@@ -431,11 +431,11 @@ public class DataRepositoryImpl implements DataRepository {
      * @param filePath путь к файлу для проверки
      * @throws IllegalArgumentException если файл не имеет расширения .txt
      */
-    private void validateTxtExtension(String filePath) {
-        if (!filePath.toLowerCase().endsWith(".txt")) {
-            throw new IllegalArgumentException("File must have .txt extension");
-        }
-    }
+    //private void validateTxtExtension(String filePath) {
+    //    if (!filePath.toLowerCase().endsWith(".txt")) {
+    //        throw new IllegalArgumentException("File must have .txt extension");
+    //    }
+    //}
 
     /**
      * Кодирует схему таблицы в бинарный формат
@@ -575,7 +575,7 @@ public class DataRepositoryImpl implements DataRepository {
      */
     @Override
     public void addRecord(String tablePath, List<Object> data) throws IOException {
-        validateTxtExtension(tablePath);
+        //validateTxtExtension(tablePath);
 
         try (RandomAccessFile file = new RandomAccessFile(tablePath, "rw")) {
             // Читаем схему и проверяем данные
@@ -676,7 +676,7 @@ public class DataRepositoryImpl implements DataRepository {
      */
     private void createNewTablePart(String tableFilePath, String tableName, int recordCountInTable, List<String> schema)
             throws IOException {
-        validateTxtExtension(tableFilePath);
+        //validateTxtExtension(tableFilePath);
         validateSchema(schema);
 
         Path path = Paths.get(tableFilePath).getParent();
@@ -831,7 +831,7 @@ public class DataRepositoryImpl implements DataRepository {
      */
     @Override
     public List<Object> readRecord(String tablePath, int recordIndex, int recordsOnPrevPages) throws IOException {
-        validateTxtExtension(tablePath);
+        //validateTxtExtension(tablePath);
 
         try (RandomAccessFile file = new RandomAccessFile(tablePath, "r")) {
             // Получаем текущее количество записей на этой странице
@@ -905,7 +905,7 @@ public class DataRepositoryImpl implements DataRepository {
      */
     @Override
     public void deleteRecord(String tablePath, int recordIndex) throws IOException {
-        validateTxtExtension(tablePath);
+        //validateTxtExtension(tablePath);
 
         if (recordIndex < 0) {
             throw new IllegalArgumentException("Invalid record index: " + recordIndex);
@@ -1029,7 +1029,7 @@ public class DataRepositoryImpl implements DataRepository {
     @Override
     public List<Integer> findRecordsByCondition(String tablePath, int column1, String operator, int column2)
             throws IOException {
-        validateTxtExtension(tablePath);
+        //validateTxtExtension(tablePath);
 
         List<Integer> matchingIndices = new ArrayList<>();
         int currentIndex = 0;
@@ -1129,7 +1129,7 @@ public class DataRepositoryImpl implements DataRepository {
     @Override
     public List<Integer> findRecordsByConstant(String tablePath, int columnIndex, String operator, Object constant)
             throws IOException {
-        validateTxtExtension(tablePath);
+        //validateTxtExtension(tablePath);
 
         List<Integer> matchingIndices = new ArrayList<>();
         int currentIndex = 0;
@@ -1251,7 +1251,7 @@ public class DataRepositoryImpl implements DataRepository {
             String pattern,
             boolean caseSensitive
     ) throws IOException {
-        validateTxtExtension(tablePath);
+        //validateTxtExtension(tablePath);
 
         List<Integer> matchingIndices = new ArrayList<>();
         int currentIndex = 0;
@@ -1340,7 +1340,7 @@ public class DataRepositoryImpl implements DataRepository {
      */
     @Override
     public List<Integer> getAllRecordIndices(String tablePath) throws IOException {
-        validateTxtExtension(tablePath);
+        //validateTxtExtension(tablePath);
 
         List<Integer> allIndices = new ArrayList<>();
         int currentIndex = 0;
