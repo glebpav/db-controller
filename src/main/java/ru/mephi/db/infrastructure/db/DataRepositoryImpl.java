@@ -604,7 +604,7 @@ public class DataRepositoryImpl implements DataRepository {
             }
 
             //Если нужна новая страница
-            if(dataPosition >= file.length() - (recordCountInThisPage + 1) * 8L){
+            if(dataPosition + calculateRecordSize(schema, data) >= file.length() - (recordCountInThisPage + 1) * 8L){
 
                 String nextTablePath = getNextTablePartPath(file);
 
@@ -626,14 +626,12 @@ public class DataRepositoryImpl implements DataRepository {
                     // Обновляем указатель на следующую часть в текущей таблице
                     createNewTablePart(nextTablePath, tableName, recordCountInTable, tableSchema);
                     updateNextTablePointer(file, nextTablePath);
-                    return;
                 }
 
                 file.seek(54);
                 file.writeInt(recordCountInTable + 1);
                 // Добавляем запись в новую страницу
                 addRecord(nextTablePath, data);
-
             }
             //Если вмещается на эту страницу
             else {
@@ -1369,29 +1367,29 @@ public class DataRepositoryImpl implements DataRepository {
 
             // 1. Создаем БД и таблицу
             repo.createDatabaseFile(dbFile, "DB");
-            List<String> schema = Arrays.asList("int", "str_20", "int", "int"); // ID, Name, Age
+            List<String> schema = Arrays.asList("int", "str_20", "int"); // ID, Name, Age
             repo.createTableFile(tableFile, "Users", schema);
             repo.addTableReference(dbFile, tableFile);
 
             // 2. Добавляем 2000 записей
-            System.out.println("=== Добавляем 1000 записей ===");
-            for (int i = 0; i < 1000; i++) {
-                repo.addRecord(tableFile, Arrays.asList(i+1, "User"+i, 20 + i%30, 10 + i%40));
+            System.out.println("=== Добавляем 5000 записей ===");
+            for (int i = 0; i < 5000; i++) {
+                repo.addRecord(tableFile, Arrays.asList(i+1, "User"+i, 20 + i%30));
             }
-            System.out.println("Успешно добавлено 1000 записей\n");
+            System.out.println("Успешно добавлено 5000 записей\n");
 
             // Читаем записи
-            //System.out.println("\nReading records:");
-            //for (int i = 0; i < 1000; i++) {
-            //    List<Object> record = repo.readRecord(tableFile, i, 0);
-            //    System.out.printf("Record %d: %s%n", i, record.get(1));
-            //}
-
-            List<Integer> index = repo.getAllRecordIndices(tableFile);
-            for (int i = 0; i < index.size(); i++) {
-                List<Object> record = repo.readRecord(tableFile, index.get(i), 0);
+            System.out.println("\nReading records:");
+            for (int i = 0; i < 5000; i++) {
+                List<Object> record = repo.readRecord(tableFile, i, 0);
                 System.out.printf("Record %d: %s%n", i, record);
             }
+
+            //List<Integer> index = repo.getAllRecordIndices(tableFile);
+            //for (int i = 0; i < index.size(); i++) {
+            //    List<Object> record = repo.readRecord(tableFile, index.get(i), 0);
+            //    System.out.printf("Record %d: %s%n", i, record);
+            //}
 
         } catch (Exception e) {
             e.printStackTrace();
