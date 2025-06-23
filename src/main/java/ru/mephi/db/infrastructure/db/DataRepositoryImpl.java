@@ -620,16 +620,15 @@ public class DataRepositoryImpl implements DataRepository {
                     byte[] schemaBytes = new byte[TABLE_SCHEMA_SIZE];
                     file.readFully(schemaBytes);
                     List<String> tableSchema = decodeSchema(schemaBytes);
-                    createNewTablePart(nextTablePath, tableName, recordCountInTable, tableSchema);
 
                     // Обновляем указатель на следующую часть в текущей таблице
+                    createNewTablePart(nextTablePath, tableName, recordCountInTable, tableSchema);
                     updateNextTablePointer(file, nextTablePath);
                     return;
                 }
 
                 file.seek(54);
                 file.writeInt(recordCountInTable + 1);
-
                 // Добавляем запись в новую страницу
                 addRecord(nextTablePath, data);
 
@@ -662,13 +661,21 @@ public class DataRepositoryImpl implements DataRepository {
         byte[] pointerBytes = new byte[TABLE_POINTER_SIZE];
         file.readFully(pointerBytes);
         String nextPath = new String(pointerBytes, StandardCharsets.UTF_8).trim();
-        return nextPath.isEmpty() ? null : nextPath;
+        if (nextPath.isEmpty()) {
+            return null;
+        }
+
+        if (!nextPath.toLowerCase().endsWith(".txt")) {
+            nextPath = nextPath + ".txt";
+        }
+        return nextPath;
     }
 
     /**
      * Создает новую часть таблицы с теми же параметрами
      */
-    private void createNewTablePart(String tableFilePath, String tableName, int recordCountInTable, List<String> schema) throws IOException {
+    private void createNewTablePart(String tableFilePath, String tableName, int recordCountInTable, List<String> schema)
+            throws IOException {
         validateTxtExtension(tableFilePath);
         validateSchema(schema);
 
@@ -899,6 +906,11 @@ public class DataRepositoryImpl implements DataRepository {
     @Override
     public void deleteRecord(String tablePath, int recordIndex) throws IOException {
         validateTxtExtension(tablePath);
+
+        if (recordIndex < 0) {
+            throw new IllegalArgumentException("Invalid record index: " + recordIndex);
+        }
+
         Path backupPath = createBackup(tablePath);
 
         try (RandomAccessFile file = new RandomAccessFile(tablePath, "rw")) {
@@ -911,7 +923,7 @@ public class DataRepositoryImpl implements DataRepository {
             int recordsInPage = file.readInt();
             int totalRecords = file.readInt();
 
-            if (recordIndex < 0 || recordIndex >= totalRecords) {
+            if (recordIndex >= totalRecords) {
                 throw new IllegalArgumentException("Invalid record index: " + recordIndex +
                         ", total records: " + totalRecords);
             }
@@ -926,7 +938,8 @@ public class DataRepositoryImpl implements DataRepository {
                     deleteRecord(nextPagePath, recordIndex - recordsInPage);
 
                     // Обновляем общий счетчик записей
-                    file.seek(54);
+                    file.seek(50);
+                    file.writeInt(recordIndex);
                     file.writeInt(totalRecords - 1);
                 }
                 return;
@@ -1000,63 +1013,5 @@ public class DataRepositoryImpl implements DataRepository {
             Files.delete(target);
         }
         Files.move(backup, target);
-    }
-
-    public static void main(String[] args) {
-        try {
-            DataRepositoryImpl repo = new DataRepositoryImpl();
-            String dbFile = "test_db.txt";
-            String tableFile = "test_table.txt";
-
-            // 1. Создаем БД и таблицу
-            repo.createDatabaseFile(dbFile, "TestDB");
-            List<String> schema = Arrays.asList("int", "str_10", "int"); // ID, Name, Age
-            repo.createTableFile(tableFile, "Users", schema);
-            repo.addTableReference(dbFile, tableFile);
-
-            // 2. Добавляем 2000 записей
-            System.out.println("=== Добавляем 2000 записей ===");
-            for (int i = 0; i < 2000; i++) {
-                repo.addRecord(tableFile, Arrays.asList(i+1, "User"+i, 20 + i%30));
-            }
-            System.out.println("Успешно добавлено 2000 записей\n");
-
-            // 3. Удаляем записи с индексами 1000 и 1700
-            System.out.println("\n=== Удаляем записи 1000 и 1700 ===");
-            repo.deleteRecord(tableFile, 1000);
-            repo.deleteRecord(tableFile, 1700);
-            System.out.println("Записи удалены\n");
-
-            // 4. Выводим все оставшиеся записи
-            System.out.println("=== ВСЕ ОСТАВШИЕСЯ ЗАПИСИ ПОСЛЕ УДАЛЕНИЯ ===");
-
-            try (RandomAccessFile file = new RandomAccessFile(tableFile, "r")) {
-                file.seek(54);
-                int totalRecords = file.readInt();
-
-                // Выводим записи блоками по 20 для удобства просмотра
-                int recordsPerBlock = 20;
-                for (int i = 0; i < totalRecords; i++) {
-                    if (i % recordsPerBlock == 0) {
-                        System.out.printf("\n=== Записи %d-%d ===\n",
-                                i, Math.min(i + recordsPerBlock - 1, totalRecords - 1));
-                    }
-
-                    try {
-                        List<Object> record = repo.readRecord(tableFile, i, 0);
-                        System.out.printf("%4d: [ID=%4d, Name=%-8s, Age=%2d]%n",
-                                i, record.get(0), record.get(1), record.get(2));
-                    } catch (IllegalArgumentException e) {
-                        System.out.printf("%4d: [УДАЛЕНО]%n", i);
-                    }
-                }
-
-                System.out.printf("\nИтого записей после удаления: %d (должно быть 1998)\n",
-                        totalRecords);
-            }
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
     }
 }

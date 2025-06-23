@@ -4,10 +4,8 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 import ru.mephi.db.infrastructure.db.DataRepositoryImpl;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.RandomAccessFile;
+import java.io.*;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -509,6 +507,485 @@ class DataRepositoryImplTest {
     }
 
     /* ------------------------------- Запись данных в файле -----------------------------*/
+    @Test
+    void testAddRecord_Successful() throws Exception {
+        String dbFilePath = testDir.resolve("test_db.txt").toString();
+        String tableFilePath = testDir.resolve("test_table.txt").toString();
 
-    
+        dataRepository.createDatabaseFile(dbFilePath, "test_db");
+        dataRepository.createTableFile(tableFilePath, "test_table", Arrays.asList("int", "str_20"));
+        dataRepository.addTableReference(dbFilePath, tableFilePath);
+        dataRepository.addRecord(tableFilePath, Arrays.asList(1, "JohnDoe"));
+
+        List<Object> record = dataRepository.readRecord(tableFilePath, 0, 0); // индекс 0
+        assertNotNull(record);
+        assertEquals(1, record.get(0));
+        assertEquals("JohnDoe", record.get(1));
+    }
+
+    @Test
+    void testAddRecord_Combined() throws IOException {
+        List<Object> testData = Arrays.asList(1, "Test String");
+        dataRepository.addRecord(tableFilePath, testData);
+
+        try (RandomAccessFile file = new RandomAccessFile(tableFilePath, "r")) {
+            file.seek(50);
+            assertEquals(1, file.readInt(), "Record count should be 1");
+        }
+
+        assertThrows(IllegalArgumentException.class, () ->
+                dataRepository.addRecord(tableFilePath, Arrays.asList("not_an_int", "JohnDoe")));
+
+        assertThrows(IllegalArgumentException.class, () ->
+                dataRepository.addRecord(tableFilePath, Arrays.asList(1, "ThisStringIsWayTooLongForStr20")));
+
+        assertThrows(IllegalArgumentException.class, () ->
+                dataRepository.addRecord(tableFilePath, Arrays.asList(1, "AnotherVeryLongStringThatExceedsLimit")));
+
+        String invalidPath = tableFilePath.replace(".txt", ".dat");
+        assertThrows(IllegalArgumentException.class,
+                () -> dataRepository.addRecord(invalidPath, Arrays.asList(1, "Test String")),
+                "Should throw for invalid extension");
+    }
+
+    @Test
+    void testAddRecord_AllScenarios() throws IOException {
+        List<Object> testData = Arrays.asList(1, "Test String");
+        dataRepository.addRecord(tableFilePath, testData);
+
+        try (RandomAccessFile file = new RandomAccessFile(tableFilePath, "r")) {
+            file.seek(50);
+            assertEquals(1, file.readInt(), "Record count should be 1 after first addition");
+        }
+        int recordCount = 100;
+        for (int i = 1; i < recordCount; i++) {
+            dataRepository.addRecord(tableFilePath, Arrays.asList(i, "User" + i));
+        }
+
+        try (RandomAccessFile file = new RandomAccessFile(tableFilePath, "r")) {
+            file.seek(50);
+            assertEquals(recordCount, file.readInt(), "Record count mismatch after multiple additions");
+        }
+
+        assertAll("Invalid cases",
+                () -> {
+                    String invalidPath = tableFilePath.replace(".txt", ".dat");
+                    assertThrows(IllegalArgumentException.class,
+                            () -> dataRepository.addRecord(invalidPath, Arrays.asList(1, "Test")));
+                },
+
+                () -> {
+                    assertThrows(IllegalArgumentException.class,
+                            () -> dataRepository.addRecord(tableFilePath,
+                                    Arrays.asList("String instead of int", "Test")));
+                },
+
+                () -> {
+                    assertThrows(IllegalArgumentException.class,
+                            () -> dataRepository.addRecord(tableFilePath,
+                                    Arrays.asList(1, 123)));
+                },
+
+                () -> {
+                    assertThrows(IllegalArgumentException.class,
+                            () -> dataRepository.addRecord(tableFilePath,
+                                    List.of(1)));
+                },
+
+                () -> {
+                    assertThrows(IllegalArgumentException.class,
+                            () -> dataRepository.addRecord(tableFilePath,
+                                    Arrays.asList(1, "A".repeat(21))));
+                },
+
+                () -> {
+                    Files.write(Paths.get(tableFilePath), new byte[10]);
+                    assertThrows(IOException.class,
+                            () -> dataRepository.addRecord(tableFilePath,
+                                    Arrays.asList(1, "Test")));
+
+                    tearDown();
+                    setUp(testDir);
+                }
+        );
+    }
+
+    @Test
+    void testAddRecord_WithPageCreation() throws IOException {
+        List<String> schema = Arrays.asList("int", "str_10");
+        dataRepository.createTableFile(tableFilePath, "test_table", schema);
+
+        try (RandomAccessFile file = new RandomAccessFile(tableFilePath, "r")) {
+            file.seek(50 + 4 + 4 + 100 + 100 - 100); // TABLE_HEADER_SIZE - TABLE_POINTER_SIZE
+            byte[] pointer = new byte[100]; // TABLE_POINTER_SIZE
+            file.readFully(pointer);
+            String pointerContent = new String(pointer).trim();
+            assertTrue(pointerContent.isEmpty(),
+                    "Next page pointer should be empty initially. Actual: '" + pointerContent + "'");
+        }
+
+        int recordsPerPage = 0;
+        try {
+            while (true) {
+                dataRepository.addRecord(tableFilePath, Arrays.asList(recordsPerPage, "User" + recordsPerPage));
+                recordsPerPage++;
+            }
+        } catch (Exception e) {
+            // Ловим переполнение страницы
+        }
+
+        String nextPagePath;
+        try (RandomAccessFile file = new RandomAccessFile(tableFilePath, "r")) {
+            file.seek(50 + 4 + 4 + 100 + 100 - 100);
+            byte[] pointer = new byte[100];
+            file.readFully(pointer);
+            nextPagePath = new String(pointer).trim();
+            assertFalse(nextPagePath.isEmpty(),
+                    "Next page pointer should be set after overflow");
+        }
+
+        assertTrue(Files.exists(Paths.get(nextPagePath)),
+                "Next page file should exist at: " + nextPagePath);
+
+        try (RandomAccessFile newPageFile = new RandomAccessFile(nextPagePath, "r")) {
+            byte[] nameBytes = new byte[50];
+            newPageFile.readFully(nameBytes);
+            assertEquals("test_table", new String(nameBytes).trim());
+
+            newPageFile.seek(50);
+
+            byte[] schemaBytes = new byte[100];
+            newPageFile.readFully(schemaBytes);
+            newPageFile.seek(50 + 4 + 4 + 100);
+            byte[] nextPointer = new byte[100];
+            newPageFile.readFully(nextPointer);
+        }
+    }
+
+    /* ------------------------------- Чтение данных -----------------------------*/
+    @Test
+    public void testReadRecord_ValidFirstRecord_Success() throws Exception {
+        dataRepository.addRecord(tableFilePath, Arrays.asList(100, "John"));
+
+        List<Object> result = dataRepository.readRecord(tableFilePath, 0, 0);
+
+        assertEquals(100, result.get(0));
+        assertEquals("John", result.get(1));
+    }
+
+    @Test
+    public void testReadRecord_ValidMultipleRecords_Success() throws Exception {
+        for (int i = 0; i < 3; i++) {
+            dataRepository.addRecord(tableFilePath, Arrays.asList(i, "User" + i));
+        }
+
+        for (int i = 0; i < 3; i++) {
+            List<Object> result = dataRepository.readRecord(tableFilePath, i, 0);
+            assertEquals(i, result.get(0));
+            assertEquals("User" + i, result.get(1));
+        }
+    }
+
+    @Test
+    public void testReadRecord_IndexTooLow_Exception() throws Exception {
+        dataRepository.addRecord(tableFilePath, Arrays.asList(100, "John"));
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
+                dataRepository.readRecord(tableFilePath, -1, 0));
+
+        assertTrue(exception.getMessage().contains("Invalid record index"));
+    }
+
+    @Test
+    public void testReadRecord_IndexTooHigh_Exception() throws Exception {
+        dataRepository.addRecord(tableFilePath, Arrays.asList(100, "John"));
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
+                dataRepository.readRecord(tableFilePath, 1, 0));
+
+        assertTrue(exception.getMessage().contains("Invalid record index"));
+    }
+
+    @Test
+    public void testReadRecord_ReadFromSecondPage_Success() throws Exception {
+        for (int i = 0; i < 40; i++) {
+            dataRepository.addRecord(tableFilePath, Arrays.asList(i, "User" + i));
+        }
+        dataRepository.addRecord(tableFilePath, Arrays.asList(40, "User40"));
+        List<Object> result = dataRepository.readRecord(tableFilePath, 40, 0);
+
+        assertEquals(40, result.get(0));
+        assertEquals("User40", result.get(1));
+    }
+
+    @Test
+    public void testReadRecord_StringLengthValidation_Success() throws Exception {
+        dataRepository.addRecord(tableFilePath, Arrays.asList(999, "short"));
+
+        List<Object> result = dataRepository.readRecord(tableFilePath, 0, 0);
+
+        assertEquals(999, result.get(0));
+        assertEquals("short", result.get(1));
+    }
+
+    @Test
+    public void testReadRecord_StringExceedsMaxLength_Failure() throws Exception {
+        dataRepository.addRecord(tableFilePath, Arrays.asList(1, "short"));
+
+        try (RandomAccessFile file = new RandomAccessFile(tableFilePath, "rw")) {
+            file.seek(50 + 4 + 4 + 100 + 100);
+            file.writeInt(1);
+
+            String invalidString = "thisstringiswaytoolong"; // >10 символов
+            int maxLength = 10;
+            file.writeInt(invalidString.length());
+            byte[] bytes = invalidString.getBytes(StandardCharsets.UTF_8);
+            file.write(bytes);
+            if (maxLength > bytes.length) {
+                file.write(new byte[maxLength - bytes.length]);
+            }
+        }
+        IOException exception = assertThrows(IOException.class, () ->
+                dataRepository.readRecord(tableFilePath, 0, 0));
+
+        assertTrue(exception.getMessage().contains("String length exceeds max allowed size"));
+    }
+
+    @Test
+    public void testReadRecord_CorruptedIndexOffset_Failure() throws Exception {
+        dataRepository.addRecord(tableFilePath, Arrays.asList(100, "John"));
+
+        try (RandomAccessFile file = new RandomAccessFile(tableFilePath, "rw")) {
+            long offsetPosition = file.length() - 8L;
+            file.seek(offsetPosition);
+            file.writeLong(10);
+        }
+
+        IOException exception = assertThrows(IOException.class, () ->
+                dataRepository.readRecord(tableFilePath, 0, 0));
+
+        assertTrue(exception.getMessage().contains("Invalid data offset in index"));
+    }
+
+    /* ------------------------------- Удаление записей -----------------------------*/
+    @Test
+    public void testDeleteRecord_ValidIndex_Success() throws Exception {
+        dataRepository.addRecord(tableFilePath, Arrays.asList(100, "John"));
+        dataRepository.addRecord(tableFilePath, Arrays.asList(200, "Alice"));
+
+        assertDoesNotThrow(() -> dataRepository.deleteRecord(tableFilePath, 0));
+
+        List<Object> result = dataRepository.readRecord(tableFilePath, 0, 0);
+        assertEquals(200, result.get(0));
+        assertEquals("Alice", result.get(1));
+    }
+
+    @Test
+    public void testDeleteRecord_MiddleRecord_Success() throws Exception {
+        for (int i = 0; i < 5; i++) {
+            dataRepository.addRecord(tableFilePath, Arrays.asList(i, "User" + i));
+        }
+
+        dataRepository.deleteRecord(tableFilePath, 2);
+
+        List<Object> result1 = dataRepository.readRecord(tableFilePath, 0, 0);
+        assertEquals(0, result1.get(0));
+
+        List<Object> result2 = dataRepository.readRecord(tableFilePath, 1, 0);
+        assertEquals(1, result2.get(0));
+
+        List<Object> result3 = dataRepository.readRecord(tableFilePath, 2, 0);
+        assertEquals(3, result3.get(0));
+
+        List<Object> result4 = dataRepository.readRecord(tableFilePath, 3, 0);
+        assertEquals(4, result4.get(0));
+    }
+
+    @Test
+    public void testDeleteRecord_LastRecord_Success() throws Exception {
+        for (int i = 0; i < 3; i++) {
+            dataRepository.addRecord(tableFilePath, Arrays.asList(i, "User" + i));
+        }
+
+        dataRepository.deleteRecord(tableFilePath, 2);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
+                dataRepository.readRecord(tableFilePath, 2, 0));
+
+        assertTrue(exception.getMessage().contains("Invalid record index"));
+    }
+
+    @Test
+    public void testDeleteRecord_FromSecondPage_Success() throws Exception {
+        for (int i = 0; i < 40; i++) {
+            dataRepository.addRecord(tableFilePath, Arrays.asList(i, "User" + i));
+        }
+
+        dataRepository.addRecord(tableFilePath, Arrays.asList(40, "User40"));
+        assertDoesNotThrow(() -> dataRepository.deleteRecord(tableFilePath, 40));
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
+                dataRepository.readRecord(tableFilePath, 40, 0));
+
+        assertTrue(exception.getMessage().contains("Invalid record index"));
+    }
+
+    @Test
+    public void testDeleteRecord_IndexTooLow_Exception() throws Exception {
+        dataRepository.addRecord(tableFilePath, Arrays.asList(100, "John"));
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
+                dataRepository.deleteRecord(tableFilePath, -1));
+
+        assertTrue(exception.getMessage().contains("Invalid record index"));
+    }
+
+    @Test
+    public void testDeleteRecord_OnSecondPage_Success() throws Exception {
+        for (int i = 0; i < 40; i++) {
+            dataRepository.addRecord(tableFilePath, Arrays.asList(i, "User" + i));
+        }
+        dataRepository.addRecord(tableFilePath, Arrays.asList(40, "User40"));
+
+        List<Object> result = dataRepository.readRecord(tableFilePath, 40, 0);
+        assertEquals(40, result.get(0));
+        assertEquals("User40", result.get(1));
+
+        assertDoesNotThrow(() -> dataRepository.deleteRecord(tableFilePath, 40));
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
+                dataRepository.readRecord(tableFilePath, 40, 0));
+
+        assertTrue(exception.getMessage().contains("Invalid record index"));
+    }
+
+    @Test
+    public void testDeleteRecord_UpdatesTotalRecordCountOnSecondPage() throws Exception {
+        for (int i = 0; i < 40; i++) {
+            dataRepository.addRecord(tableFilePath, Arrays.asList(i, "User" + i));
+        }
+        dataRepository.addRecord(tableFilePath, Arrays.asList(40, "User40")); // Вторая страница
+        dataRepository.deleteRecord(tableFilePath, 40);
+
+        try (RandomAccessFile file = new RandomAccessFile(tableFilePath, "r")) {
+            file.seek(50);
+            int recordCountInThisPage = file.readInt();
+            int totalRecords = file.readInt();
+
+            assertEquals(40, recordCountInThisPage);
+            assertEquals(40, totalRecords);
+        }
+    }
+
+    @Test
+    public void testDeleteRecord_FileStructureIntegrityAfterDeletion() throws Exception {
+        dataRepository.addRecord(tableFilePath, Arrays.asList(100, "John"));
+        dataRepository.addRecord(tableFilePath, Arrays.asList(200, "Alice"));
+
+        dataRepository.deleteRecord(tableFilePath, 1);
+
+        try (RandomAccessFile file = new RandomAccessFile(tableFilePath, "r")) {
+            file.seek(50);
+            int recordCountInThisPage = file.readInt();
+            int totalRecords = file.readInt();
+
+            assertEquals(1, recordCountInThisPage);
+            assertEquals(1, totalRecords);
+        }
+    }
+
+    @Test
+    public void testGenerateNextTablePartPath_FirstPart() throws Exception {
+        DataRepositoryImpl repository = new DataRepositoryImpl();
+        Method method = DataRepositoryImpl.class.getDeclaredMethod("generateNextTablePartPath", String.class);
+        method.setAccessible(true);
+
+        String currentPath = "test_table.txt";
+        String nextPath = (String) method.invoke(repository, currentPath);
+        assertEquals("test_table_part1.txt", new File(nextPath).getName());
+    }
+
+    @Test
+    void testDeleteWithInvalidPageChain() throws IOException {
+        try (RandomAccessFile mainFile = new RandomAccessFile(tableFilePath, "rw")) {
+            mainFile.setLength(258);
+            mainFile.seek(50);
+            mainFile.writeInt(1);
+
+            mainFile.seek(258 - 8);
+            mainFile.write("bad_path".getBytes(StandardCharsets.UTF_8));
+        }
+
+        assertThrows(IOException.class, () ->
+                dataRepository.deleteRecord(tableFilePath, 1));
+    }
+
+    @Test
+    void testCalculateRecordSize_IntAndStr10() throws Exception {
+
+        List<String> schema = Arrays.asList("int", "str_10");
+        List<Object> data = Arrays.asList(123, "John");
+
+        Method method = DataRepositoryImpl.class.getDeclaredMethod("calculateRecordSize", List.class, List.class);
+        method.setAccessible(true);
+
+        int size = (int) method.invoke(dataRepository, schema, data);
+
+        assertEquals(4 + 4 + 10, size); // 4 байта на int, 4+10 на str_10
+    }
+
+    @Test
+    void testDeleteRecord_OnSecondPage_ShouldUpdateCounters() throws Exception {
+        List<String> schema = Arrays.asList("int", "str_10");
+        dataRepository.createTableFile(tableFilePath, "test_table", schema);
+
+        int recordSize = 4 + 10; // Размер одной записи
+        int maxRecordsOnPage = (65536 - 258) / (recordSize + 8); // ~2510
+
+        // Заполняем первую страницу полностью
+        for (int i = 0; i <= maxRecordsOnPage; i++) {
+            dataRepository.addRecord(tableFilePath, Arrays.asList(i, "User" + i));
+        }
+
+        // Добавляем одну запись на вторую страницу
+        dataRepository.addRecord(tableFilePath, Arrays.asList(maxRecordsOnPage, "FinalUser"));
+
+        Path secondPagePath = Paths.get(tableFilePath.replace(".txt", "_part1.txt"));
+        assertTrue(Files.exists(secondPagePath), "Файл второй части должен быть создан");
+
+        assertDoesNotThrow(() -> dataRepository.deleteRecord(tableFilePath, maxRecordsOnPage),
+                "Должна успешно удаляться запись с индексом " + maxRecordsOnPage);
+
+        // Проверяем обновленные счетчики в основной странице
+        try (RandomAccessFile file = new RandomAccessFile(tableFilePath, "r")) {
+            file.seek(50);
+            int updatedRecordsInThisPage = file.readInt();
+            int updatedTotalRecords = file.readInt();
+
+            assertEquals(maxRecordsOnPage, updatedRecordsInThisPage,
+                    "Количество записей на первой странице не должно измениться");
+            assertEquals(maxRecordsOnPage, updatedTotalRecords,
+                    "Общее количество записей должно уменьшиться на 1");
+        }
+
+        // Проверяем обновленные счетчики во второй странице
+        try (RandomAccessFile secondPageFile = new RandomAccessFile(secondPagePath.toString(), "r")) {
+            secondPageFile.seek(50);
+            int recordsInSecondPage = secondPageFile.readInt();
+            assertEquals(456, recordsInSecondPage,
+                    "После удаления единственной записи вторая страница должна быть пуста");
+        }
+
+        // Проверяем, что указатель на следующую страницу очищен
+        try (RandomAccessFile file = new RandomAccessFile(tableFilePath, "r")) {
+            file.seek(258 - 8); // Позиция указателя
+            byte[] pointer = new byte[8];
+            file.readFully(pointer);
+            String nextPagePath = new String(pointer, StandardCharsets.UTF_8).trim();
+            assertFalse(nextPagePath.isEmpty(),
+                    "Указатель на следующую страницу должен быть очищен");
+        }
+    }
+
 }
+
