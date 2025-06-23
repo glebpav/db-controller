@@ -1382,13 +1382,73 @@ public class DataRepositoryImpl implements DataRepository {
         return allIndices;
     }
 
+    /**
+     * Возвращает список имен всех таблиц, принадлежащих указанной базе данных.
+     *
+     * @param dbFilePath путь к файлу базы данных
+     * @return список имен таблиц (в порядке их регистрации в БД)
+     * @throws IOException если произошла ошибка ввода-вывода
+     * @throws IllegalArgumentException если файл БД не существует или поврежден
+     */
+    @Override
+    public List<String> getAllTableNames(String dbFilePath) throws IOException {
+        Path dbPath = Paths.get(dbFilePath).toAbsolutePath().normalize();
+        if (!Files.exists(dbPath)) {
+            throw new FileNotFoundException("Database file not found: " + dbPath);
+        }
+
+        List<String> tableNames = new ArrayList<>();
+
+        try (RandomAccessFile dbFile = new RandomAccessFile(dbPath.toFile(), "r")) {
+            // Проверяем минимальный размер файла
+            if (dbFile.length() < DB_HEADER_SIZE) {
+                throw new IOException("Corrupted database file: too small");
+            }
+
+            // Читаем количество таблиц
+            dbFile.seek(50);
+            int tableCount = dbFile.readInt();
+
+            // Проверяем, что файл достаточно большой для хранения указанного количества таблиц
+            long requiredSize = DB_HEADER_SIZE + (long) tableCount * DB_POINTER_SIZE;
+            if (dbFile.length() < requiredSize) {
+                throw new IOException("Corrupted database file: invalid table count");
+            }
+
+            // Читаем пути ко всем таблицам
+            for (int i = 0; i < tableCount; i++) {
+                dbFile.seek(DB_HEADER_SIZE + (long) i * DB_POINTER_SIZE);
+                byte[] pointerBytes = new byte[DB_POINTER_SIZE];
+                dbFile.readFully(pointerBytes);
+                String tablePath = new String(pointerBytes, StandardCharsets.UTF_8).trim();
+
+                if (!tablePath.isEmpty()) {
+                    // Извлекаем имя таблицы из пути
+                    Path tableFilePath = Paths.get(tablePath).getFileName();
+                    if (tableFilePath != null) {
+                        String fileName = tableFilePath.toString();
+                        // Удаляем расширение .txt если есть
+                        if (fileName.toLowerCase().endsWith(".txt")) {
+                            fileName = fileName.substring(0, fileName.length() - 4);
+                        }
+                        tableNames.add(fileName);
+                    }
+                }
+            }
+        }
+
+        return tableNames;
+    }
+
     public static void main(String[] args) {
         try {
             DataRepositoryImpl repo = new DataRepositoryImpl();
-            //String dbFile = "C:\\BDTest\\DB.txt";
+            String dbFile = "C:\\BDTest\\Master.txt";
             String tableFile1 = "C:\\BDTest\\users1.txt";
             String tableFile2 = "C:\\BDTest\\users2.txt";
             String tableFile3 = "C:\\BDTest\\users3.txt";
+            String tableFile4 = "C:\\BDTest\\users4.txt";
+            String tableFile5 = "C:\\BDTest\\users5.txt";
 
             // 1. Создаем БД и таблицу
             //repo.createDatabaseFile(dbFile, "DB");
@@ -1397,9 +1457,16 @@ public class DataRepositoryImpl implements DataRepository {
             repo.createTableFile(tableFile1, "Users1", schema);
             repo.createTableFile(tableFile2, "Users2", schema);
             repo.createTableFile(tableFile3, "Users3", schema);
+            repo.createTableFile(tableFile4, "Users4", schema);
+            repo.createTableFile(tableFile5, "Users5", schema);
 
-            //repo.deleteTableFile(tableFile2);
+            List<String> tablesName = repo.getAllTableNames(dbFile);
+            System.out.println(tablesName);
 
+            repo.deleteTableFile(tableFile3);
+
+            tablesName = repo.getAllTableNames(dbFile);
+            System.out.println(tablesName);
 
             //repo.addTableReference(dbFile, tableFile);
 

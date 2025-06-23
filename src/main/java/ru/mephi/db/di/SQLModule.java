@@ -34,7 +34,7 @@ public abstract class SQLModule {
                 new RollbackHandler(),
                 new ShowFilesHandler(),
                 new DropTableHandler(dataRepository, connectionConfig),
-                new ShowTablesHandler()
+                new ShowTablesHandler(dataRepository, connectionConfig)
         ));
     }
 
