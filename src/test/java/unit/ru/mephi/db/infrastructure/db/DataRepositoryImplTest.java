@@ -5,12 +5,14 @@ import org.junit.jupiter.api.io.TempDir;
 import ru.mephi.db.infrastructure.db.DataRepositoryImpl;
 
 import java.io.*;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Stream;
@@ -329,7 +331,7 @@ class DataRepositoryImplTest {
         }
 
         Path corruptedTable = testDir.resolve("corrupted_table.txt");
-        Files.write(corruptedTable, new byte[54 + 100 + 100 - 1]);
+        Files.write(corruptedTable, new byte[258 - 100 - 1]);
         assertDoesNotThrow(() -> dataRepository.deleteTableFile(corruptedTable.toString()));
 
         Path cyclicPart1 = testDir.resolve("cyclic1.txt");
@@ -970,6 +972,594 @@ class DataRepositoryImplTest {
             int recordsInSecondPage = secondPageFile.readInt();
             assertEquals(456, recordsInSecondPage,
                     "После удаления единственной записи вторая страница должна быть пуста");
+        }
+    }
+
+    /* ------------------------------- Проверка наших методов -----------------------------*/
+    @Nested
+    class DataRepositoryConditionTest {
+
+        private DataRepositoryImpl dataRepository;
+        private Path testDir;
+        private String tablePath;
+
+        private void initThreeColumnTable() throws IOException {
+            // Создаем новую таблицу с нужной структурой
+            tablePath = testDir.resolve("condition_test_table.txt").toString();
+            dataRepository.createTableFile(tablePath, "condition_test_table",
+                    Arrays.asList("int", "str_20", "int"));
+
+            // Добавляем тестовые данные
+            dataRepository.addRecord(tablePath, Arrays.asList(1, "Alice", 25));
+            dataRepository.addRecord(tablePath, Arrays.asList(2, "Bob", 30));
+            dataRepository.addRecord(tablePath, Arrays.asList(3, "Charlie", 25));
+            dataRepository.addRecord(tablePath, Arrays.asList(4, "David", 35));
+            dataRepository.addRecord(tablePath, Arrays.asList(5, "Eve", 30));
+        }
+
+        private boolean invokeCheckConditionWithConstant(DataRepositoryImpl repository, Object columnValue,
+                String operator,
+                Object constant) throws Exception {
+
+            Method method = DataRepositoryImpl.class.getDeclaredMethod(
+                    "checkConditionWithConstant", Object.class, String.class, Object.class);
+            method.setAccessible(true);
+            return (boolean) method.invoke(repository, columnValue, operator, constant);
+        }
+
+        @BeforeEach
+        void setUp(@TempDir Path tempDir) throws IOException {
+            dataRepository = new DataRepositoryImpl();
+            testDir = tempDir;
+
+            String dbFilePath = testDir.resolve("test_db.txt").toString();
+            String tableFilePath = testDir.resolve("test_table.txt").toString();
+
+            dataRepository.createDatabaseFile(dbFilePath, "test_db");
+            dataRepository.createTableFile(tableFilePath, "test_table",
+                    Arrays.asList("int", "str_20"));
+            dataRepository.addTableReference(dbFilePath, tableFilePath);
+        }
+
+        @AfterEach
+        void tearDown() {
+            try {
+                try (Stream<Path> walk = Files.walk(testDir)) {
+                    walk.sorted(Comparator.reverseOrder())
+                            .map(Path::toFile)
+                            .forEach(file -> {
+                                boolean deleted = file.delete();
+                                if (!deleted) {
+                                    System.err.println("Failed to delete file: " + file.getAbsolutePath());
+                                }
+                            });
+                }
+            } catch (IOException e) {
+                System.err.println("Cleanup warning: " + e.getMessage());
+            }
+        }
+
+        @Test
+        void testFindRecordsByCondition_CrossColumn() throws IOException {
+            initThreeColumnTable();
+
+            dataRepository.addRecord(tablePath, Arrays.asList(25, "Test", 25));
+
+            List<Integer> result = dataRepository.findRecordsByCondition(tablePath, 2, "==", 0);
+            assertEquals(List.of(5), result);
+        }
+
+        @Test
+        void testFindRecordsByCondition_InvalidColumn() throws IOException {
+            initThreeColumnTable();
+
+            assertThrows(IllegalArgumentException.class, () -> {
+                dataRepository.findRecordsByCondition(tablePath, 5, "==", 0);
+            });
+        }
+
+        @Test
+        void testFindRecordsByConstant_IntComparison() throws IOException {
+            initThreeColumnTable();
+
+
+            List<Integer> result = dataRepository.findRecordsByConstant(tablePath, 2, ">", 30);
+            assertEquals(List.of(3), result); // David(35)
+        }
+
+        @Test
+        void testFindRecordsByConstant_StringComparison() throws IOException {
+            initThreeColumnTable();
+
+            List<Integer> result = dataRepository.findRecordsByConstant(tablePath, 1, "==", "Alice");
+            assertEquals(List.of(0), result);
+        }
+
+        @Test
+        void testFindRecordsByConstant_TypeMismatch() throws IOException {
+            initThreeColumnTable();
+
+            assertThrows(IllegalArgumentException.class, () -> {
+                dataRepository.findRecordsByConstant(tablePath, 1, "==", 123); // string vs int
+            });
+        }
+
+        @Test
+        void testFindRecordsByCondition_InvalidOperator() throws IOException {
+            initThreeColumnTable();
+
+            assertThrows(IllegalArgumentException.class, () -> {
+                dataRepository.findRecordsByCondition(tablePath, 0, "like", 1);
+            });
+        }
+
+        @Test
+        void testFindRecordsByCondition_EmptyTable() throws IOException {
+            tablePath = testDir.resolve("empty_table.txt").toString();
+            dataRepository.createTableFile(tablePath, "empty_table",
+                    Collections.singletonList("int"));
+
+            List<Integer> result = dataRepository.findRecordsByCondition(
+                    tablePath, 0, ">", 0);
+            assertTrue(result.isEmpty());
+        }
+
+        @Nested
+        class StringComparisonTests {
+            @BeforeEach
+            void initStringTable() throws IOException {
+                tablePath = testDir.resolve("str_comparison_table.txt").toString();
+                dataRepository.createTableFile(tablePath, "str_comparison",
+                        Arrays.asList("str_20", "str_20"));
+
+                dataRepository.addRecord(tablePath, Arrays.asList("apple", "banana"));
+                dataRepository.addRecord(tablePath, Arrays.asList("banana", "apple"));
+                dataRepository.addRecord(tablePath, Arrays.asList("cherry", "cherry"));
+                dataRepository.addRecord(tablePath, Arrays.asList("date", "date"));
+                dataRepository.addRecord(tablePath, Arrays.asList("apple", "date"));
+            }
+
+            @Test
+            void testStringGreaterThan() throws IOException {
+                List<Integer> result = dataRepository.findRecordsByCondition(
+                        tablePath, 0, ">", 1);
+                assertEquals(List.of(1), result);
+            }
+
+            @Test
+            void testStringLessThan() throws IOException {
+                List<Integer> result = dataRepository.findRecordsByCondition(
+                        tablePath, 0, "<", 1);
+                assertEquals(List.of(0, 4), result);
+            }
+
+            @Test
+            void testStringGreaterOrEqual() throws IOException {
+                List<Integer> result = dataRepository.findRecordsByCondition(
+                        tablePath, 0, ">=", 1);
+                assertEquals(List.of(1, 2, 3), result);
+            }
+
+            @Test
+            void testStringLessOrEqual() throws IOException {
+                List<Integer> result = dataRepository.findRecordsByCondition(
+                        tablePath, 0, "<=", 1);
+                assertEquals(List.of(0, 2, 3, 4), result);
+            }
+
+            @Test
+            void testStringEqual() throws IOException {
+                List<Integer> result = dataRepository.findRecordsByCondition(
+                        tablePath, 0, "==", 1);
+                assertEquals(List.of(2, 3), result);
+            }
+
+            @Test
+            void testStringNotEqual() throws IOException {
+                List<Integer> result = dataRepository.findRecordsByCondition(
+                        tablePath, 0, "!=", 1);
+                assertEquals(List.of(0, 1, 4), result);
+            }
+
+            @Test
+            void shouldThrowExceptionForUnsupportedOperator() throws IOException {
+                // Подготовка
+                tablePath = testDir.resolve("operator_test.txt").toString();
+                dataRepository.createTableFile(tablePath, "operator_test",
+                        Arrays.asList("str_20", "str_20"));
+                dataRepository.addRecord(tablePath, Arrays.asList("test", "test"));
+
+                // Действие и проверка
+                Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+                    dataRepository.findRecordsByCondition(tablePath, 0, "invalid_op", 1);
+                });
+
+                assertTrue(exception.getMessage().contains("Unsupported operator"));
+            }
+        }
+
+        @Nested
+        class IntegerComparisonTests {
+            @BeforeEach
+            void initIntTable() throws IOException {
+                tablePath = testDir.resolve("int_comparison_table.txt").toString();
+                dataRepository.createTableFile(tablePath, "int_comparison",
+                        Arrays.asList("int", "int"));
+
+                // Добавляем тестовые данные:
+                // Колонка 0: [5, 3, 4, 4, 2]
+                // Колонка 1: [3, 3, 2, 5, 2]
+                dataRepository.addRecord(tablePath, Arrays.asList(5, 3));
+                dataRepository.addRecord(tablePath, Arrays.asList(3, 3));
+                dataRepository.addRecord(tablePath, Arrays.asList(4, 2));
+                dataRepository.addRecord(tablePath, Arrays.asList(4, 5));
+                dataRepository.addRecord(tablePath, Arrays.asList(2, 2));
+            }
+
+            @Test
+            void testGreaterThan() throws IOException {
+                List<Integer> result = dataRepository.findRecordsByCondition(
+                        tablePath, 0, ">", 1);
+                assertEquals(List.of(0, 2), result); // 5>3 и 4>2
+            }
+
+            @Test
+            void testLessThan() throws IOException {
+                List<Integer> result = dataRepository.findRecordsByCondition(
+                        tablePath, 0, "<", 1);
+                assertEquals(List.of(3), result); // 4<5
+            }
+
+            @Test
+            void testGreaterOrEqual() throws IOException {
+                List<Integer> result = dataRepository.findRecordsByCondition(
+                        tablePath, 0, ">=", 1);
+                assertEquals(List.of(0, 1, 2, 4), result); // 5≥3, 3≥3, 4≥2, 2≥2
+            }
+
+            @Test
+            void testLessOrEqual() throws IOException {
+                List<Integer> result = dataRepository.findRecordsByCondition(
+                        tablePath, 0, "<=", 1);
+                assertEquals(List.of(1, 3, 4), result); // 3≤3, 4≤5, 2≤2
+            }
+
+            @Test
+            void testEqual() throws IOException {
+                List<Integer> result = dataRepository.findRecordsByCondition(
+                        tablePath, 0, "==", 1);
+                assertEquals(List.of(1, 4), result); // 3==3 и 2==2
+            }
+
+            @Test
+            void testNotEqual() throws IOException {
+                List<Integer> result = dataRepository.findRecordsByCondition(
+                        tablePath, 0, "!=", 1);
+                assertEquals(List.of(0, 2, 3), result); // 5≠3, 4≠2, 4≠5
+            }
+        }
+
+        @Test
+        void testCompareDifferentTypes_throwsException() throws IOException {
+            initThreeColumnTable();
+
+            Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+                dataRepository.findRecordsByCondition(tablePath, 0, "==", 1);
+            });
+
+            String message = exception.getMessage();
+            assertNotNull(message, "Сообщение об ошибке не должно быть null");
+            assertTrue(message.contains("Cannot compare different types"),
+                    "Сообщение должно содержать 'Cannot compare different types'. Получено: " + message);
+            assertTrue(message.contains("Integer") && message.contains("String"),
+                    "Сообщение должно содержать типы Integer и String. Получено: " + message);
+        }
+
+        @Test
+        void testFindRecordsByConstant_IntGreaterThan() throws IOException {
+            tablePath = testDir.resolve("int_constant_table.txt").toString();
+            dataRepository.createTableFile(tablePath, "int_constant_table", List.of("int"));
+
+            dataRepository.addRecord(tablePath, List.of(10));
+            dataRepository.addRecord(tablePath, List.of(20));
+            dataRepository.addRecord(tablePath, List.of(30));
+
+            List<Integer> result = dataRepository.findRecordsByConstant(tablePath, 0, ">", 15);
+            assertEquals(List.of(1, 2), result); // 20 и 30 > 15
+        }
+
+        @Test
+        void testFindRecordsByConstant_StringEqual() throws IOException {
+            tablePath = testDir.resolve("str_constant_table.txt").toString();
+            dataRepository.createTableFile(tablePath, "str_constant_table", List.of("str_20"));
+
+            dataRepository.addRecord(tablePath, List.of("apple"));
+            dataRepository.addRecord(tablePath, List.of("banana"));
+            dataRepository.addRecord(tablePath, List.of("apple"));
+
+            List<Integer> result = dataRepository.findRecordsByConstant(tablePath, 0, "==", "apple");
+
+            assertEquals(List.of(0, 2), result);
+        }
+
+        @Test
+        void testFindRecordsByConstant_InvalidColumnIndex() throws IOException {
+            tablePath = testDir.resolve("invalid_column_table.txt").toString();
+            dataRepository.createTableFile(tablePath, "invalid_column_table", List.of("int"));
+
+            assertThrows(IllegalArgumentException.class, () -> {
+                dataRepository.findRecordsByConstant(tablePath, 5, "==", 10);
+            });
+        }
+
+        @Test
+        void testFindRecordsByConstant_UnsupportedOperator() throws IOException {
+            tablePath = testDir.resolve("unsupported_op_table.txt").toString();
+            dataRepository.createTableFile(tablePath, "unsupported_op_table", List.of("int"));
+
+            Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+                dataRepository.findRecordsByConstant(tablePath, 0, "like", 10);
+            });
+
+            assertTrue(exception.getMessage().contains("Unsupported operator"));
+        }
+
+        @Test
+        void testFindRecordsByConstant_ColumnInt_ConstantString_throwsException() throws IOException {
+            tablePath = testDir.resolve("int_column_string_constant.txt").toString();
+            dataRepository.createTableFile(tablePath, "int_column_string_constant",
+                    List.of("int"));
+
+            dataRepository.addRecord(tablePath, List.of(10));
+            dataRepository.addRecord(tablePath, List.of(20));
+
+            Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+                dataRepository.findRecordsByConstant(tablePath, 0, "==", "15");
+            });
+
+            String message = exception.getMessage();
+            assertNotNull(message, "Сообщение об ошибке не должно быть null");
+            assertTrue(message.contains("Column type is int but constant is String"),
+                    "Сообщение должно содержать 'Column type is int but constant is String'. Получено: " + message);
+        }
+
+        @Nested
+        class IntegerComparisonTest {
+            private DataRepositoryImpl repository;
+
+            @BeforeEach
+            void setUp() {
+                repository = new DataRepositoryImpl();
+            }
+
+            @Test
+            void testGreaterThan() throws Exception {
+                assertTrue(invokeCheckConditionWithConstant(repository, 10, ">", 5));
+                assertFalse(invokeCheckConditionWithConstant(repository, 5, ">", 10));
+            }
+
+            @Test
+            void testLessThan() throws Exception {
+                assertTrue(invokeCheckConditionWithConstant(repository, 5, "<", 10));
+                assertFalse(invokeCheckConditionWithConstant(repository, 10, "<", 5));
+            }
+
+            @Test
+            void testGreaterOrEqual() throws Exception {
+                assertTrue(invokeCheckConditionWithConstant(repository, 10, ">=", 5));
+                assertTrue(invokeCheckConditionWithConstant(repository, 10, ">=", 10));
+                assertFalse(invokeCheckConditionWithConstant(repository, 5, ">=", 10));
+            }
+
+            @Test
+            void testLessOrEqual() throws Exception {
+                assertTrue(invokeCheckConditionWithConstant(repository, 5, "<=", 10));
+                assertTrue(invokeCheckConditionWithConstant(repository, 10, "<=", 10));
+                assertFalse(invokeCheckConditionWithConstant(repository, 10, "<=", 5));
+            }
+
+            @Test
+            void testEqual() throws Exception {
+                assertTrue(invokeCheckConditionWithConstant(repository, 10, "==", 10));
+                assertFalse(invokeCheckConditionWithConstant(repository, 10, "==", 5));
+            }
+
+            @Test
+            void testNotEqual() throws Exception {
+                assertTrue(invokeCheckConditionWithConstant(repository, 10, "!=", 5));
+                assertFalse(invokeCheckConditionWithConstant(repository, 10, "!=", 10));
+            }
+
+            @Test
+            void testUnsupportedOperator() {
+                Exception exception = assertThrows(InvocationTargetException.class, () ->
+                        invokeCheckConditionWithConstant(repository, 10, "like", 5));
+
+                Throwable cause = exception.getCause();
+                assertNotNull(cause);
+                assertEquals(AssertionError.class, cause.getClass());
+                assertTrue(cause.getMessage().contains("Unsupported operator: like"));
+            }
+        }
+
+        @Nested
+        class StringComparisonTest {
+            private DataRepositoryImpl repository;
+
+            @BeforeEach
+            void setUp() {
+                repository = new DataRepositoryImpl();
+            }
+
+            @Test
+            void testGreaterThan() throws Exception {
+                assertTrue(invokeCheckConditionWithConstant(repository, "banana", ">", "apple"));
+                assertFalse(invokeCheckConditionWithConstant(repository, "apple", ">", "banana"));
+            }
+
+            @Test
+            void testLessThan() throws Exception {
+                assertTrue(invokeCheckConditionWithConstant(repository, "apple", "<", "banana"));
+                assertFalse(invokeCheckConditionWithConstant(repository, "banana", "<", "apple"));
+            }
+
+            @Test
+            void testGreaterOrEqual() throws Exception {
+                assertTrue(invokeCheckConditionWithConstant(repository, "banana", ">=", "apple"));
+                assertTrue(invokeCheckConditionWithConstant(repository, "apple", ">=", "apple"));
+                assertFalse(invokeCheckConditionWithConstant(repository, "apple", ">=", "banana"));
+            }
+
+            @Test
+            void testLessOrEqual() throws Exception {
+                assertTrue(invokeCheckConditionWithConstant(repository, "apple", "<=", "banana"));
+                assertTrue(invokeCheckConditionWithConstant(repository, "apple", "<=", "apple"));
+                assertFalse(invokeCheckConditionWithConstant(repository, "banana", "<=", "apple"));
+            }
+
+            @Test
+            void testEqual() throws Exception {
+                assertTrue(invokeCheckConditionWithConstant(repository, "apple", "==", "apple"));
+                assertFalse(invokeCheckConditionWithConstant(repository, "apple", "==", "banana"));
+            }
+
+            @Test
+            void testNotEqual() throws Exception {
+                assertTrue(invokeCheckConditionWithConstant(repository, "apple", "!=", "banana"));
+                assertFalse(invokeCheckConditionWithConstant(repository, "apple", "!=", "apple"));
+            }
+
+            @Test
+            void testUnsupportedOperator() throws Exception {
+                InvocationTargetException exception = assertThrows(
+                        InvocationTargetException.class,
+                        () -> invokeCheckConditionWithConstant(repository, "apple", "like", "a")
+                );
+
+                Throwable cause = exception.getCause();
+                assertNotNull(cause);
+                assertEquals(AssertionError.class, cause.getClass());
+                assertTrue(cause.getMessage().contains("Unsupported operator: like"));
+            }
+        }
+
+        @Nested
+        class MixedTypeComparisonTests {
+            private DataRepositoryImpl repository;
+
+            @BeforeEach
+            void setUp() {
+                repository = new DataRepositoryImpl();
+            }
+
+            @Test
+            void testIntVsString() {
+                InvocationTargetException exception = assertThrows(InvocationTargetException.class, () ->
+                        invokeCheckConditionWithConstant(repository, 10, "==", "10"));
+
+                Throwable cause = exception.getCause();
+                assertNotNull(cause);
+                assertEquals(IllegalArgumentException.class, cause.getClass());
+                assertTrue(cause.getMessage().contains("Cannot compare Integer with String"));
+            }
+
+            @Test
+            void testStringVsInt() {
+                InvocationTargetException exception = assertThrows(InvocationTargetException.class, () ->
+                        invokeCheckConditionWithConstant(repository, "10", "==", 10));
+
+                Throwable cause = exception.getCause();
+                assertNotNull(cause);
+                assertEquals(IllegalArgumentException.class, cause.getClass());
+                assertTrue(cause.getMessage().contains("Cannot compare String with Integer"));
+            }
+
+            @Test
+            void testDoubleVsString() {
+                InvocationTargetException exception = assertThrows(InvocationTargetException.class, () ->
+                        invokeCheckConditionWithConstant(repository, 10.5, "==", "10.5"));
+
+                Throwable cause = exception.getCause();
+                assertNotNull(cause);
+                assertEquals(IllegalArgumentException.class, cause.getClass());
+                assertTrue(cause.getMessage().contains("Cannot compare Double with String"));
+            }
+        }
+
+        @Nested
+        class FindRecordsByPatternTests {
+            private DataRepositoryImpl dataRepository;
+            private Path testDir;
+            private String tablePath;
+
+            @BeforeEach
+            void setUp(@TempDir Path tempDir) throws IOException {
+                dataRepository = new DataRepositoryImpl();
+                testDir = tempDir;
+                tablePath = testDir.resolve("pattern_table.txt").toString();
+                dataRepository.createTableFile(tablePath, "pattern_table",
+                        Arrays.asList("str_20", "int"));
+
+                dataRepository.addRecord(tablePath, Arrays.asList("apple", 1));
+                dataRepository.addRecord(tablePath, Arrays.asList("banana", 2));
+                dataRepository.addRecord(tablePath, Arrays.asList("applesauce", 3));
+                dataRepository.addRecord(tablePath, Arrays.asList("grape", 4));
+                dataRepository.addRecord(tablePath, Arrays.asList("Apple", 5));
+            }
+
+            @Test
+            void testFindExactMatch() throws IOException {
+                List<Integer> result = dataRepository.findRecordsByPattern(tablePath, 0, "apple", true);
+                assertEquals(List.of(0), result);
+            }
+
+            @Test
+            void testWildcardPercent() throws IOException {
+                List<Integer> result = dataRepository.findRecordsByPattern(tablePath, 0, "apple%", true);
+                assertEquals(List.of(0, 2), result); // "apple" и "applesauce"
+            }
+
+            @Test
+            void testWildcardUnderscore() throws IOException {
+                List<Integer> result = dataRepository.findRecordsByPattern(tablePath, 0, "gr_pe", true);
+                assertEquals(List.of(3), result); // "grape"
+            }
+
+            @Test
+            void testCaseInsensitiveMatch() throws IOException {
+                List<Integer> result = dataRepository.findRecordsByPattern(tablePath, 0, "apple", false);
+                assertEquals(List.of(0, 4), result); // "apple" и "Apple"
+            }
+
+            @Test
+            void testNoMatch() throws IOException {
+                List<Integer> result = dataRepository.findRecordsByPattern(tablePath, 0, "orange", true);
+                assertTrue(result.isEmpty());
+            }
+
+            @Test
+            void testInvalidColumnType() {
+                assertThrows(IllegalArgumentException.class, () -> {
+                    dataRepository.findRecordsByPattern(tablePath, 1, "123", true);
+                });
+            }
+
+            @Test
+            void testInvalidColumnIndex() {
+                assertThrows(IllegalArgumentException.class, () -> {
+                    dataRepository.findRecordsByPattern(tablePath, 2, "invalid", true);
+                });
+            }
+
+            @Test
+            void testEmptyTable() throws IOException {
+                String emptyTablePath = testDir.resolve("empty_pattern_table.txt").toString();
+                dataRepository.createTableFile(emptyTablePath, "empty_pattern_table",
+                        Collections.singletonList("str_20"));
+                List<Integer> result = dataRepository.findRecordsByPattern(emptyTablePath, 0, "%a%",
+                        true);
+                assertTrue(result.isEmpty());
+            }
         }
     }
 }
