@@ -150,9 +150,6 @@ public class SQLParserImpl implements SQLParser {
             InsertQueryListener listener = new InsertQueryListener();
             ParseTreeWalker.DEFAULT.walk(listener, queryContext);
 
-            // Сразу вызываем добавление записи после парсинга
-           dataRepository.addRecord(listener.getTableName(), listener.getValues());
-
             return Query.builder()
                     .type(QueryType.INSERT)
                     .table(listener.getTableName())

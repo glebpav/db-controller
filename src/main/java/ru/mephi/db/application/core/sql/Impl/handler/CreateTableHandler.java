@@ -31,7 +31,6 @@ public class CreateTableHandler implements QueryHandler {
         String dbFilePath = connectionconfig.getDbPath();
 
         String tableFilePath = dbFilePath + "\\" + tableName + ".txt";
-        System.out.println(tableFilePath);
 
         try {
             List<String> storageSchema = schema.stream()

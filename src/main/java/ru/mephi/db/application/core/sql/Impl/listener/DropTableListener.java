@@ -14,4 +14,5 @@ public class DropTableListener extends PDropTableBaseListener {
     public void enterTable_name(PDropTable.Table_nameContext ctx) {
         tableName = ctx.ID().getText();
     }
+
 }

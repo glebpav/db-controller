@@ -22,7 +22,7 @@ public class InsertQueryListener extends PInsertBaseListener {
             if (num.contains(".")) {
                 values.add(Double.parseDouble(num));
             } else {
-                values.add(Long.parseLong(num));
+                values.add(Integer.parseInt(num));
             }
         } else if (ctx.STRING() != null) {
             values.add(ctx.STRING().getText().replaceAll("^'|'$", ""));

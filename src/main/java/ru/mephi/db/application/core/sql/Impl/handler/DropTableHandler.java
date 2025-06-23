@@ -1,15 +1,21 @@
 package ru.mephi.db.application.core.sql.Impl.handler;
 
+import lombok.RequiredArgsConstructor;
+import ru.mephi.db.application.adapter.db.DataRepository;
+import ru.mephi.db.application.core.ConnectionConfig;
 import ru.mephi.db.application.core.sql.QueryHandler;
 import ru.mephi.db.domain.entity.Query;
 import ru.mephi.db.domain.entity.QueryResult;
 import ru.mephi.db.domain.valueobject.QueryType;
 import ru.mephi.db.infrastructure.db.DataRepositoryImpl;
 
+import java.util.List;
 import java.util.Map;
 
+@RequiredArgsConstructor
 public class DropTableHandler implements QueryHandler {
-    private final DataRepositoryImpl dataRepository = new DataRepositoryImpl();
+    private final DataRepository dataRepository;
+    private final ConnectionConfig connectionconfig ;
 
     @Override
     public boolean canHandle(QueryType type) {
@@ -20,6 +26,7 @@ public class DropTableHandler implements QueryHandler {
     public QueryResult handle(Query query) {
         try {
             String tableName = query.getTable();
+
             if (tableName == null || tableName.isEmpty()) {
                 return new QueryResult(
                         false,
@@ -28,7 +35,10 @@ public class DropTableHandler implements QueryHandler {
                 );
             }
 
-           // result = dataRepository.dropTable(tableName);
+            String dbFilePath = connectionconfig.getDbPath();
+            String tableFilePath = dbFilePath + "\\" + tableName + ".txt";
+
+           dataRepository.deleteTableFile(tableFilePath);
 
             return new QueryResult(
                     true,

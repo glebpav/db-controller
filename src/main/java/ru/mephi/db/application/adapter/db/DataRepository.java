@@ -9,7 +9,6 @@ public interface DataRepository {
 
     void deleteDatabaseFile(String dbFilePath) throws IOException;
     void deleteTableFile(String tableFilePath) throws IOException;
-    void removeTableReference(String dbFilePath, String tableFilePath) throws IOException;
 
     void addRecord(String tablePath, List<Object> data) throws IOException;
     List<Object> readRecord(String tablePath, int recordIndex, int recordsOnPrevPages) throws IOException;

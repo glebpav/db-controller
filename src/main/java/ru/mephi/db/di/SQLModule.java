@@ -27,13 +27,13 @@ public abstract class SQLModule {
         return new QueryExecutorImpl(List.of(
                 new CreateTableHandler(dataRepository, connectionConfig),
                 new SelectQueryHandler(),
-                new InsertQueryHandler(),
+                new InsertQueryHandler(dataRepository, connectionConfig),
                 new DeleteQueryHandler(),
                 new BeginTransactionHandler(),
                 new CommitHandler(),
                 new RollbackHandler(),
                 new ShowFilesHandler(),
-                new DropTableHandler(),
+                new DropTableHandler(dataRepository, connectionConfig),
                 new ShowTablesHandler()
         ));
     }

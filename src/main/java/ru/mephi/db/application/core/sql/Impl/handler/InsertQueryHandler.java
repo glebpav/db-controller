@@ -1,5 +1,8 @@
 package ru.mephi.db.application.core.sql.Impl.handler;
+
+import lombok.RequiredArgsConstructor;
 import ru.mephi.db.application.adapter.db.DataRepository;
+import ru.mephi.db.application.core.ConnectionConfig;
 import ru.mephi.db.application.core.sql.QueryHandler;
 import ru.mephi.db.domain.entity.Query;
 import ru.mephi.db.domain.entity.QueryResult;
@@ -8,9 +11,11 @@ import ru.mephi.db.infrastructure.db.DataRepositoryImpl;
 import java.util.List;
 import java.util.Map;
 
+@RequiredArgsConstructor
 public class InsertQueryHandler implements QueryHandler {
+    private final DataRepository dataRepository;
+    private final ConnectionConfig connectionconfig ;
 
-    private final DataRepository dataRepository = new DataRepositoryImpl();
     @Override
     public boolean canHandle(QueryType type) {
         return type == QueryType.INSERT;
@@ -19,10 +24,11 @@ public class InsertQueryHandler implements QueryHandler {
     @Override
     public QueryResult handle(Query query) {
         try {
+            String tableName = query.getTable();
+            String dbFilePath = connectionconfig.getDbPath();
+            String tableFilePath = dbFilePath + "\\" + tableName + ".txt";
             List<Object> values = query.getValues();
-            String tableName = query.getTable() + ".txt";
-
-            dataRepository.addRecord(tableName, values);
+            dataRepository.addRecord(tableFilePath, values);
 
             return QueryResult.builder()
                     .success(true)

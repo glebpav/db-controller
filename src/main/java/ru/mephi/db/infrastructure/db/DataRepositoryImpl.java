@@ -297,6 +297,21 @@ public class DataRepositoryImpl implements DataRepository {
             throw new IOException("Table file is not readable: " + tableFilePath);
         }
 
+
+        Path path = Paths.get(tableFilePath).getParent();
+        if (path != null && !Files.exists(path)) {
+            Files.createDirectories(path);
+        }
+
+        // Получаем путь к Master DB (в той же директории, где удаляемая таблица)
+        String masterDbPath = path + "\\Master.txt";
+
+        // Если Master DB существует - удаляем из нее ссылку на таблицу
+        if (Files.exists(Paths.get(masterDbPath))) {
+            removeTableReference(masterDbPath, tableFilePath);
+        }
+
+
         List<Path> allTableParts = new ArrayList<>();
         Path currentPart = tablePath;
         int partsLimit = 1000; //либо больше взять число(чтоб бесконечного цикла не было)
@@ -374,8 +389,7 @@ public class DataRepositoryImpl implements DataRepository {
      * @throws IOException если произошла ошибка ввода-вывода
      * @throws IllegalArgumentException если файлы имеют неверное расширение
      */
-    @Override
-    public void removeTableReference(String dbFilePath, String tableFilePath) throws IOException {
+    private void removeTableReference(String dbFilePath, String tableFilePath) throws IOException {
         //validateTxtExtension(dbFilePath);
         //validateTxtExtension(tableFilePath);
 
@@ -1371,34 +1385,43 @@ public class DataRepositoryImpl implements DataRepository {
     public static void main(String[] args) {
         try {
             DataRepositoryImpl repo = new DataRepositoryImpl();
-            String dbFile = "C:\\BDTest\\DB.txt";
-            String tableFile = "C:\\BDTest\\Users.txt";
+            //String dbFile = "C:\\BDTest\\DB.txt";
+            String tableFile1 = "C:\\BDTest\\users1.txt";
+            String tableFile2 = "C:\\BDTest\\users2.txt";
+            String tableFile3 = "C:\\BDTest\\users3.txt";
 
             // 1. Создаем БД и таблицу
             //repo.createDatabaseFile(dbFile, "DB");
-            List<String> schema = Arrays.asList("int", "str_20", "int"); // ID, Name, Age
-            repo.createTableFile(tableFile, "Users", schema);
+
+            List<String> schema = Arrays.asList("int", "int"); // ID, Name, Age
+            repo.createTableFile(tableFile1, "Users1", schema);
+            repo.createTableFile(tableFile2, "Users2", schema);
+            repo.createTableFile(tableFile3, "Users3", schema);
+
+            //repo.deleteTableFile(tableFile2);
+
+
             //repo.addTableReference(dbFile, tableFile);
 
             // 2. Добавляем 2000 записей
-            System.out.println("=== Добавляем 5000 записей ===");
-            for (int i = 0; i < 5000; i++) {
-                repo.addRecord(tableFile, Arrays.asList(i+1, "User"+i, 20 + i%30));
-            }
-            System.out.println("Успешно добавлено 5000 записей\n");
+            //System.out.println("=== Добавляем 5000 записей ===");
+            //for (int i = 0; i < 1000; i++) {
+            //    repo.addRecord(tableFile, Arrays.asList(i+1, 20 + i%30));
+            //}
+            //System.out.println("Успешно добавлено 5000 записей\n");
 
             // Читаем записи
-            System.out.println("\nReading records:");
-            for (int i = 0; i < 5000; i++) {
-                List<Object> record = repo.readRecord(tableFile, i, 0);
-                System.out.printf("Record %d: %s%n", i, record);
-            }
-//
-//            //List<Integer> index = repo.getAllRecordIndices(tableFile);
-//            //for (int i = 0; i < index.size(); i++) {
-//            //    List<Object> record = repo.readRecord(tableFile, index.get(i), 0);
-//            //    System.out.printf("Record %d: %s%n", i, record);
-//            //}
+            //System.out.println("\nReading records:");
+            //for (int i = 0; i < 1000; i++) {
+            //    List<Object> record = repo.readRecord(tableFile, i, 0);
+            //    System.out.printf("Record %d: %s%n", i, record);
+            //}
+
+            //List<Integer> index = repo.getAllRecordIndices(tableFile);
+            //for (int i = 0; i < index.size(); i++) {
+            //    List<Object> record = repo.readRecord(tableFile, index.get(i), 0);
+            //    System.out.printf("Record %d: %s%n", i, record);
+            //}
 
         } catch (Exception e) {
             e.printStackTrace();
