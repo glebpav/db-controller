@@ -44,8 +44,7 @@ public class DataRepositoryImpl implements DataRepository {
      * @throws IOException если произошла ошибка ввода-вывода
      * @throws IllegalArgumentException если имя базы данных превышает 50 символов
      */
-    @Override
-    public void createDatabaseFile(String dbFilePath, String dbName) throws IOException {
+    private void createDatabaseFile(String dbFilePath, String dbName) throws IOException {
         //validateTxtExtension(dbFilePath);
 
         Path path = Paths.get(dbFilePath).getParent();
@@ -74,8 +73,7 @@ public class DataRepositoryImpl implements DataRepository {
      * @throws IOException если произошла ошибка ввода-вывода
      * @throws IllegalArgumentException если таблица уже существует в БД
      */
-    @Override
-    public void addTableReference(String dbFilePath, String tableFilePath) throws IOException {
+    private void addTableReference(String dbFilePath, String tableFilePath) throws IOException {
         //validateTxtExtension(dbFilePath);
         //validateTxtExtension(tableFilePath);
 
@@ -185,7 +183,6 @@ public class DataRepositoryImpl implements DataRepository {
      */
     @Override
     public void createTableFile(String tableFilePath, String tableName, List<String> schema) throws IOException {
-        //validateTxtExtension(tableFilePath);
         validateSchema(schema);
 
         Path path = Paths.get(tableFilePath).getParent();
@@ -193,10 +190,20 @@ public class DataRepositoryImpl implements DataRepository {
             Files.createDirectories(path);
         }
 
+        // Получаем путь к Master DB (в той же директории, где создается таблица)
+        Path tablePath = Paths.get(tableFilePath);
+        Path masterDbPath = tablePath.getParent().resolve("Master.txt");
+
+        // Если Master DB не существует - создаем ее
+        if (!Files.exists(masterDbPath)) {
+            createDatabaseFile(masterDbPath.toString(), "Master");
+        }
+
         if (tableName.length() > 50) {
             throw new IllegalArgumentException("Table name must be 50 characters or less");
         }
 
+        // Создаем файл таблицы
         try (RandomAccessFile file = new RandomAccessFile(tableFilePath, "rw")) {
             byte[] buffer = new byte[TABLE_MAX_SIZE];
             file.write(buffer);
@@ -218,6 +225,9 @@ public class DataRepositoryImpl implements DataRepository {
             byte[] emptyPointer = new byte[TABLE_POINTER_SIZE];
             file.write(emptyPointer);
         }
+
+        // Добавляем ссылку на таблицу в Master DB
+        addTableReference(masterDbPath.toString(), tableFilePath);
     }
 
     /**
@@ -1359,40 +1369,40 @@ public class DataRepositoryImpl implements DataRepository {
         return allIndices;
     }
 
-//    public static void main(String[] args) {
-//        try {
-//            DataRepositoryImpl repo = new DataRepositoryImpl();
-//            String dbFile = "C:\\BDTest\\DB.txt";
-//            String tableFile = "C:\\BDTest\\Users.txt";
-//
-//            // 1. Создаем БД и таблицу
-//            repo.createDatabaseFile(dbFile, "DB");
-//            List<String> schema = Arrays.asList("int", "str_20", "int"); // ID, Name, Age
-//            repo.createTableFile(tableFile, "Users", schema);
-//            repo.addTableReference(dbFile, tableFile);
-//
-//            // 2. Добавляем 2000 записей
-//            System.out.println("=== Добавляем 5000 записей ===");
-//            for (int i = 0; i < 5000; i++) {
-//                repo.addRecord(tableFile, Arrays.asList(i+1, "User"+i, 20 + i%30));
-//            }
-//            System.out.println("Успешно добавлено 5000 записей\n");
-//
-//            // Читаем записи
-//            System.out.println("\nReading records:");
-//            for (int i = 0; i < 5000; i++) {
-//                List<Object> record = repo.readRecord(tableFile, i, 0);
-//                System.out.printf("Record %d: %s%n", i, record);
-//            }
+    public static void main(String[] args) {
+        try {
+            DataRepositoryImpl repo = new DataRepositoryImpl();
+            String dbFile = "C:\\BDTest\\DB.txt";
+            String tableFile = "C:\\BDTest\\Users.txt";
+
+            // 1. Создаем БД и таблицу
+            //repo.createDatabaseFile(dbFile, "DB");
+            List<String> schema = Arrays.asList("int", "str_20", "int"); // ID, Name, Age
+            repo.createTableFile(tableFile, "Users", schema);
+            //repo.addTableReference(dbFile, tableFile);
+
+            // 2. Добавляем 2000 записей
+            System.out.println("=== Добавляем 5000 записей ===");
+            for (int i = 0; i < 5000; i++) {
+                repo.addRecord(tableFile, Arrays.asList(i+1, "User"+i, 20 + i%30));
+            }
+            System.out.println("Успешно добавлено 5000 записей\n");
+
+            // Читаем записи
+            System.out.println("\nReading records:");
+            for (int i = 0; i < 5000; i++) {
+                List<Object> record = repo.readRecord(tableFile, i, 0);
+                System.out.printf("Record %d: %s%n", i, record);
+            }
 //
 //            //List<Integer> index = repo.getAllRecordIndices(tableFile);
 //            //for (int i = 0; i < index.size(); i++) {
 //            //    List<Object> record = repo.readRecord(tableFile, index.get(i), 0);
 //            //    System.out.printf("Record %d: %s%n", i, record);
 //            //}
-//
-//        } catch (Exception e) {
-//            e.printStackTrace();
-//        }
-//    }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 }
