@@ -164,10 +164,11 @@ public class SQLParserImpl implements SQLParser {
             PDelete parser = new PDelete(tokens);
             parser.removeErrorListeners();
             parser.addErrorListener(new BaseErrorListener() {
+                @SneakyThrows
                 @Override
                 public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol,
                                         int line, int charPos, String msg, RecognitionException e) {
-                    throw new RuntimeException("Syntax error in DELETE at " + line + ":" + charPos + " - " + msg);
+                    throw new SQLParseException("Syntax error in DELETE at " + line + ":" + charPos + " - " + msg);
                 }
             });
 
@@ -179,12 +180,24 @@ public class SQLParserImpl implements SQLParser {
                 throw new SQLParseException("Table name is missing in DELETE statement");
             }
 
-            return Query.builder()
+            Query.QueryBuilder builder = Query.builder()
                     .type(QueryType.DELETE)
-                    .table(listener.getTableName())
-                    .rowIndex(listener.hasRowIndex() ? listener.getRowIndex() : null)
-                    .whereClause(listener.hasWhereClause() ? listener.getWhereClause() : null)
-                    .build();
+                    .table(listener.getTableName());
+
+            if (listener.hasWhereClause()) {
+                String whereClause = listener.getWhereClause();
+                // Проверяем специальный случай удаления по row_index
+                if (whereClause.startsWith("row_index")) {
+                    String[] parts = whereClause.split("=");
+                    if (parts.length == 2) {
+                        builder.rowIndex(Integer.parseInt(parts[1].trim()));
+                    }
+                } else {
+                    builder.whereClause(whereClause);
+                }
+            }
+
+            return builder.build();
         } catch (Exception e) {
             throw new SQLParseException("Failed to parse DELETE query: " + e.getMessage());
         }

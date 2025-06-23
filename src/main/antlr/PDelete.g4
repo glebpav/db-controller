@@ -9,7 +9,7 @@ query
     ;
 
 delete_stmt
-    : KW_DELETE KW_FROM table_name delete_condition SEMICOLON?
+    : KW_DELETE KW_FROM table_name (delete_condition)? SEMICOLON?
     ;
 
 table_name
@@ -17,22 +17,12 @@ table_name
     ;
 
 delete_condition
-    : row_index
-    | where_condition
+    : KW_WHERE condition
     ;
 
-row_index
-    : NUMBER
-    ;
-
-where_condition
-    : expression (logical_op expression)*
-    ;
-
-expression
-    : column_index comparison_operator value
-    | column_index KW_LIKE string_pattern
-    | LPAREN where_condition RPAREN
+condition
+    : column_index comparison_operator value      #SimpleCondition
+    | column_index KW_LIKE string_pattern         #LikeCondition
     ;
 
 comparison_operator
@@ -42,11 +32,6 @@ comparison_operator
     | OP_More
     | OP_EqualLess
     | OP_EqualMore
-    ;
-
-logical_op
-    : OP_AND
-    | OP_OR
     ;
 
 column_index
