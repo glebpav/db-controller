@@ -1333,6 +1333,34 @@ public class DataRepositoryImpl implements DataRepository {
         return regex;
     }
 
+    /**
+     * Возвращает список всех существующих индексов записей в таблице.
+     *
+     * @param tablePath путь к файлу таблицы
+     * @return список всех индексов (0-based)
+     * @throws IOException при ошибках чтения/записи
+     */
+    @Override
+    public List<Integer> getAllRecordIndices(String tablePath) throws IOException {
+        validateTxtExtension(tablePath);
+
+        List<Integer> allIndices = new ArrayList<>();
+        int currentIndex = 0;
+
+        try (RandomAccessFile file = new RandomAccessFile(tablePath, "r")) {
+            // Получаем количество записей на текущей странице
+            file.seek(54);
+            int recordsInTable = file.readInt();
+
+            // Добавляем индексы таблицы
+            for (int i = 0; i < recordsInTable; i++) {
+                allIndices.add(i);
+            }
+        }
+
+        return allIndices;
+    }
+
     public static void main(String[] args) {
         try {
             DataRepositoryImpl repo = new DataRepositoryImpl();
@@ -1346,20 +1374,20 @@ public class DataRepositoryImpl implements DataRepository {
             repo.addTableReference(dbFile, tableFile);
 
             // 2. Добавляем 2000 записей
-            System.out.println("=== Добавляем 2000 записей ===");
+            System.out.println("=== Добавляем 1000 записей ===");
             for (int i = 0; i < 1000; i++) {
                 repo.addRecord(tableFile, Arrays.asList(i+1, "User"+i, 20 + i%30, 10 + i%40));
             }
-            System.out.println("Успешно добавлено 2000 записей\n");
+            System.out.println("Успешно добавлено 1000 записей\n");
 
             // Читаем записи
-            System.out.println("\nReading records:");
-            for (int i = 0; i < 1000; i++) {
-                List<Object> record = repo.readRecord(tableFile, i, 0);
-                System.out.printf("Record %d: %s%n", i, record.get(1));
-            }
+            //System.out.println("\nReading records:");
+            //for (int i = 0; i < 1000; i++) {
+            //    List<Object> record = repo.readRecord(tableFile, i, 0);
+            //    System.out.printf("Record %d: %s%n", i, record.get(1));
+            //}
 
-            List<Integer> index = repo.findRecordsByPattern(tableFile, 1, "%er__", false);
+            List<Integer> index = repo.getAllRecordIndices(tableFile);
             for (int i = 0; i < index.size(); i++) {
                 List<Object> record = repo.readRecord(tableFile, index.get(i), 0);
                 System.out.printf("Record %d: %s%n", i, record);
