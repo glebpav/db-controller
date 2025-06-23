@@ -11,10 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -1559,6 +1556,78 @@ class DataRepositoryImplTest {
                 List<Integer> result = dataRepository.findRecordsByPattern(emptyTablePath, 0, "%a%",
                         true);
                 assertTrue(result.isEmpty());
+            }
+        }
+
+        @Nested
+        class GetAllRecordIndicesTest {
+            private DataRepositoryImpl dataRepository;
+            private String tablePath;
+
+            @BeforeEach
+            void setUp(@TempDir Path tempDir) {
+                dataRepository = new DataRepositoryImpl();
+                tablePath = tempDir.resolve("record_indices_table.txt").toString();
+            }
+
+            @Test
+            void testGetAllRecordIndices_WithMultipleRecords() throws IOException {
+                // Подготовка: создаём таблицу и добавляем записи
+                dataRepository.createTableFile(tablePath, "record_indices", Arrays.asList("int", "str_20"));
+                dataRepository.addRecord(tablePath, Arrays.asList(10, "Alice"));
+                dataRepository.addRecord(tablePath, Arrays.asList(20, "Bob"));
+                dataRepository.addRecord(tablePath, Arrays.asList(30, "Charlie"));
+
+                // Действие
+                List<Integer> indices = dataRepository.getAllRecordIndices(tablePath);
+
+                // Проверка
+                assertEquals(Arrays.asList(0, 1, 2), indices);
+            }
+
+            @Test
+            void testGetAllRecordIndices_EmptyTable() throws IOException {
+                // Подготовка: создаём пустую таблицу
+                dataRepository.createTableFile(tablePath, "empty_table", Collections.singletonList("int"));
+
+                // Действие
+                List<Integer> indices = dataRepository.getAllRecordIndices(tablePath);
+
+                // Проверка
+                assertTrue(indices.isEmpty());
+            }
+
+            @Test
+            void testGetAllRecordIndices_SingleRecord() throws IOException {
+                // Подготовка
+                dataRepository.createTableFile(tablePath, "single_record", Collections.singletonList("int"));
+                dataRepository.addRecord(tablePath, Arrays.asList(1));
+
+                // Действие
+                List<Integer> indices = dataRepository.getAllRecordIndices(tablePath);
+
+                // Проверка
+                assertEquals(Collections.singletonList(0), indices);
+            }
+
+            @Test
+            void testGetAllRecordIndices_CorrectIndexRange() throws IOException {
+                // Подготовка
+                dataRepository.createTableFile(tablePath, "range_table", Collections.singletonList("int"));
+
+                for (int i = 0; i < 10; i++) {
+                    dataRepository.addRecord(tablePath, List.of(i));
+                }
+
+                // Действие
+                List<Integer> indices = dataRepository.getAllRecordIndices(tablePath);
+
+                // Проверка
+                List<Integer> expected = new ArrayList<>();
+                for (int i = 0; i < 10; i++) {
+                    expected.add(i);
+                }
+                assertEquals(expected, indices);
             }
         }
     }

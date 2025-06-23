@@ -19,7 +19,7 @@ public interface DataRepository {
 
     void deleteRecord(String tablePath, int recordIndex) throws IOException;
 
-    public List<Integer> getAllRecordIndices(String tablePath) throws IOException;
+    List<Integer> getAllRecordIndices(String tablePath) throws IOException;
     List<Integer> findRecordsByCondition(String tablePath, int column1, String operator, int column2) throws IOException;
     List<Integer> findRecordsByConstant(String tablePath, int columnIndex, String operator, Object constant) throws IOException;
     List<Integer> findRecordsByPattern(String tablePath, int columnIndex, String pattern, boolean caseSensitive) throws IOException;
