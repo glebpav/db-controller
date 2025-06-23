@@ -939,15 +939,13 @@ class DataRepositoryImplTest {
         List<String> schema = Arrays.asList("int", "str_10");
         dataRepository.createTableFile(tableFilePath, "test_table", schema);
 
-        int recordSize = 4 + 10; // Размер одной записи
-        int maxRecordsOnPage = (65536 - 258) / (recordSize + 8); // ~2510
+        int recordSize = 4 + 10;
+        int maxRecordsOnPage = (65536 - 258) / (recordSize + 8);
 
-        // Заполняем первую страницу полностью
         for (int i = 0; i <= maxRecordsOnPage; i++) {
             dataRepository.addRecord(tableFilePath, Arrays.asList(i, "User" + i));
         }
 
-        // Добавляем одну запись на вторую страницу
         dataRepository.addRecord(tableFilePath, Arrays.asList(maxRecordsOnPage, "FinalUser"));
 
         Path secondPagePath = Paths.get(tableFilePath.replace(".txt", "_part1.txt"));
@@ -956,7 +954,6 @@ class DataRepositoryImplTest {
         assertDoesNotThrow(() -> dataRepository.deleteRecord(tableFilePath, maxRecordsOnPage),
                 "Должна успешно удаляться запись с индексом " + maxRecordsOnPage);
 
-        // Проверяем обновленные счетчики в основной странице
         try (RandomAccessFile file = new RandomAccessFile(tableFilePath, "r")) {
             file.seek(50);
             int updatedRecordsInThisPage = file.readInt();
@@ -968,7 +965,6 @@ class DataRepositoryImplTest {
                     "Общее количество записей должно уменьшиться на 1");
         }
 
-        // Проверяем обновленные счетчики во второй странице
         try (RandomAccessFile secondPageFile = new RandomAccessFile(secondPagePath.toString(), "r")) {
             secondPageFile.seek(50);
             int recordsInSecondPage = secondPageFile.readInt();
@@ -976,14 +972,14 @@ class DataRepositoryImplTest {
                     "После удаления единственной записи вторая страница должна быть пуста");
         }
 
-        // Проверяем, что указатель на следующую страницу очищен
         try (RandomAccessFile file = new RandomAccessFile(tableFilePath, "r")) {
-            file.seek(258 - 8); // Позиция указателя
+            file.seek(258 - 8);
             byte[] pointer = new byte[8];
             file.readFully(pointer);
             String nextPagePath = new String(pointer, StandardCharsets.UTF_8).trim();
             assertFalse(nextPagePath.isEmpty(),
-                    "Указатель на следующую страницу должен быть очищен");
+                    "Указатель на следующую страницу должен быть сохранен, " +
+                            "так как там остались записи. Актуальное значение: '" + nextPagePath + "'");
         }
     }
 
