@@ -28,7 +28,7 @@ public abstract class SQLModule {
                 new CreateTableHandler(dataRepository, connectionConfig),
                 new SelectQueryHandler(dataRepository, connectionConfig),
                 new InsertQueryHandler(dataRepository, connectionConfig),
-                new DeleteQueryHandler(),
+                new DeleteQueryHandler(dataRepository, connectionConfig),
                 new BeginTransactionHandler(),
                 new CommitHandler(),
                 new RollbackHandler(),
