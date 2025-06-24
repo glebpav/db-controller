@@ -25,16 +25,23 @@ public class DeleteQueryHandler implements QueryHandler {
     @Override
     public QueryResult handle(Query query) {
         try {
+            // Валидация
+            if (query.getTable() == null || query.getTable().isEmpty()) {
+                throw new IllegalArgumentException("Table name not specified");
+            }
+
             int deletedCount;
             String message;
             String tablePath = connectionConfig.getDbPath() + "\\" + query.getTable() + ".txt";
 
+            // 1. Удаление по индексу строки (DELETE FROM table 42)
             if (query.getRowIndex() != null) {
-
                 dataRepository.deleteRecord(tablePath, query.getRowIndex());
                 deletedCount = 1;
                 message = String.format("Deleted row %d from %s", query.getRowIndex(), query.getTable());
-            } else if (query.getWhereClause() != null) {
+            }
+            // 2. Удаление по условию (DELETE FROM table WHERE ...)
+            else if (query.getWhereClause() != null) {
                 List<Integer> indicesToDelete = findMatchingIndices(query);
                 for (int index : indicesToDelete) {
                     dataRepository.deleteRecord(tablePath, index);
@@ -42,8 +49,9 @@ public class DeleteQueryHandler implements QueryHandler {
                 deletedCount = indicesToDelete.size();
                 message = String.format("Deleted %d rows from %s where %s",
                         deletedCount, query.getTable(), query.getWhereClause());
-            } else {
-
+            }
+            // 3. Удаление всех строк (DELETE FROM table)
+            else {
                 List<Integer> allIndices = dataRepository.getAllRecordIndices(tablePath);
                 for (int index : allIndices) {
                     dataRepository.deleteRecord(tablePath, index);
@@ -62,16 +70,29 @@ public class DeleteQueryHandler implements QueryHandler {
         String whereClause = query.getWhereClause();
         String tablePath = connectionConfig.getDbPath() + "\\" + query.getTable() + ".txt";
 
-        if (whereClause.contains("LIKE")) {
+        if (whereClause == null || whereClause.trim().isEmpty()) {
+            return dataRepository.getAllRecordIndices(tablePath);
+        }
+
+        // Обработка LIKE (регистронезависимая)
+        if (whereClause.toUpperCase().contains("LIKE")) {
             String[] parts = splitCondition(whereClause, "LIKE");
             int columnIndex = Integer.parseInt(parts[0].trim());
             String pattern = cleanValue(parts[1]);
             boolean caseSensitive = !pattern.equals(pattern.toLowerCase());
             return dataRepository.findRecordsByPattern(tablePath, columnIndex, pattern, caseSensitive);
-        } else {
+        }
+        else {
             String operator = extractOperator(whereClause);
             String[] parts = splitCondition(whereClause, operator);
-            int columnIndex = Integer.parseInt(parts[0].trim());
+
+            int columnIndex;
+            try {
+                columnIndex = Integer.parseInt(parts[0].trim());
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("Left part of condition must be a column index (number): " + parts[0]);
+            }
+
             String value = cleanValue(parts[1]);
 
             if (isNumeric(value)) {
@@ -85,13 +106,14 @@ public class DeleteQueryHandler implements QueryHandler {
     private String[] splitCondition(String condition, String operator) {
         String[] parts = condition.split(operator, 2);
         if (parts.length != 2) {
-            throw new IllegalArgumentException("Invalid condition format");
+            throw new IllegalArgumentException("Invalid condition format. Expected: 'column operator value'");
         }
         return parts;
     }
 
     private String cleanValue(String value) {
-        return value.trim().replaceAll("'", "");
+        // Удаляем все типы кавычек и пробелы
+        return value.trim().replaceAll("[\"']", "");
     }
 
     private boolean isNumeric(String str) {
@@ -100,12 +122,13 @@ public class DeleteQueryHandler implements QueryHandler {
 
     private String extractOperator(String condition) {
         if (condition.contains("!=")) return "!=";
-        if (condition.contains(">=")) return ">=";
         if (condition.contains("<=")) return "<=";
-        if (condition.contains("=")) return "=";
+        if (condition.contains(">=")) return ">=";
+        if (condition.contains("==")) return "==";
+        if (condition.contains("=")) return "=";  // Обрабатываем и одинарное =
         if (condition.contains(">")) return ">";
         if (condition.contains("<")) return "<";
-        throw new IllegalArgumentException("Unknown operator in condition: " + condition);
+        throw new IllegalArgumentException("Unsupported operator. Valid operators: >, <, >=, <=, ==, !=, =");
     }
 
     private QueryResult buildSuccessResult(int deletedCount, String message) {

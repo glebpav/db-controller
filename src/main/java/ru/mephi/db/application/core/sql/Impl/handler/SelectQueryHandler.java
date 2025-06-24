@@ -56,44 +56,79 @@ public class SelectQueryHandler implements QueryHandler {
     }
 
     private List<Integer> findMatchingIndices(Query query) throws IOException {
-        String whereClause = query.getWhereClause();
         String tableName = query.getTable();
+        String whereClause = query.getWhereClause();
         String dbFilePath = connectionconfig.getDbPath();
         String tableFilePath = dbFilePath + "\\" + tableName + ".txt";
 
-        if (whereClause.contains("LIKE")) {
-            String[] parts = whereClause.split("LIKE");
-            int columnIndex = Integer.parseInt(parts[0].trim());
-            String pattern = parts[1].trim().replaceAll("'", "");
-            boolean caseSensitive = !pattern.toLowerCase().equals(pattern);
-            return dataRepository.findRecordsByPattern(tableFilePath, columnIndex, pattern, caseSensitive);
-        } else if (whereClause.contains("=") || whereClause.contains(">") || whereClause.contains("<")) {
-
-            String operator = extractOperator(whereClause);
-            String[] parts = whereClause.split(operator);
-            int column1 = Integer.parseInt(parts[0].trim());
-
-            if (parts[1].trim().matches("\\d+")) { // Если второй операнд — число (индекс столбца)
-                int column2 = Integer.parseInt(parts[1].trim());
-                return dataRepository.findRecordsByCondition(tableFilePath, column1, operator, column2);
-            } else { // Если второй операнд — константа (например, 'value')
-                String value = parts[1].trim().replaceAll("'", "");
-
-                System.out.println(value);
-
-                return dataRepository.findRecordsByConstant(tableFilePath, column1, operator, value);
-            }
+        if (whereClause == null || whereClause.trim().isEmpty()) {
+            return dataRepository.getAllRecordIndices(tableFilePath);
         }
-        throw new IllegalArgumentException("Unsupported WHERE condition: " + whereClause);
+
+        whereClause = whereClause.replaceAll("\\s*(=|!=|<=|>=|<|>|LIKE)\\s*", " $1 ").trim();
+
+        if (whereClause.toUpperCase().contains(" LIKE ")) {
+            return handleLikeCondition(whereClause, tableFilePath);
+        }
+
+        return handleComparisonCondition(whereClause, tableFilePath);
     }
 
+    private List<Integer> handleLikeCondition(String condition, String tablePath) throws IOException {
+        String[] parts = condition.split("(?i) LIKE ");
+        if (parts.length != 2) {
+            throw new IllegalArgumentException("Invalid LIKE condition format. Expected: 'column LIKE pattern'");
+        }
+
+        int columnIndex = parseColumnIndex(parts[0]);
+        String pattern = parts[1].replaceAll("['\"]", "").trim();
+        boolean caseSensitive = !pattern.equals(pattern.toLowerCase());
+
+        return dataRepository.findRecordsByPattern(tablePath, columnIndex, pattern, caseSensitive);
+    }
+
+    private List<Integer> handleComparisonCondition(String condition, String tablePath) throws IOException {
+        String operator = extractOperator(condition);
+        String[] parts = condition.split(operator, 2);
+        if (parts.length != 2) {
+            throw new IllegalArgumentException("Invalid condition format. Expected: 'column operator value'");
+        }
+
+        int columnIndex = parseColumnIndex(parts[0]);
+        String value = parts[1].replaceAll("['\"]", "").trim();
+
+        if (isNumeric(value)) {
+            return dataRepository.findRecordsByCondition(
+                    tablePath, columnIndex, operator, Integer.parseInt(value));
+        } else {
+            return dataRepository.findRecordsByConstant(
+                    tablePath, columnIndex, operator, value);
+        }
+    }
+
+    // Вспомогательные методы
+    private int parseColumnIndex(String str) {
+        try {
+            return Integer.parseInt(str.trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Column index must be a number: " + str);
+        }
+    }
+
+    private boolean isNumeric(String str) {
+        return str.matches("-?\\d+");
+    }
 
     private String extractOperator(String condition) {
-        if (condition.contains("=")) return "==";
+        if (condition.contains("!=")) return "!=";
+        if (condition.contains("<=")) return "<=";
+        if (condition.contains(">=")) return ">=";
+        if (condition.contains("=")) return "=";
         if (condition.contains(">")) return ">";
         if (condition.contains("<")) return "<";
-        throw new IllegalArgumentException("Unknown operator in condition: " + condition);
+        throw new IllegalArgumentException("Unsupported operator in condition: " + condition);
     }
+
 
     private List<Map<String, Object>> getRecordsByIndices(
             String tablePath,
