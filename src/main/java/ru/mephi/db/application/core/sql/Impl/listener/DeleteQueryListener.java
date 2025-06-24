@@ -18,7 +18,7 @@ public class DeleteQueryListener extends PDeleteBaseListener {
 
     @Override
     public void enterSimpleCondition(PDelete.SimpleConditionContext ctx) {
-        String columnIndex = ctx.column_index().NUMBER().getText();
+        String columnIndex = ctx.string_pattern().STRING().getText();
         String operator = ctx.comparison_operator().getText();
         String value = getValueText(ctx.value());
         this.whereClause = columnIndex + " " + operator + " " + value;
@@ -26,8 +26,8 @@ public class DeleteQueryListener extends PDeleteBaseListener {
 
     @Override
     public void enterLikeCondition(PDelete.LikeConditionContext ctx) {
-        String columnIndex = ctx.column_index().NUMBER().getText();
-        String pattern = ctx.string_pattern().STRING().getText();
+        String columnIndex = ctx.string_pattern().get(0).STRING().getText();
+        String pattern = ctx.string_pattern().get(1).STRING().getText();
         this.whereClause = columnIndex + " LIKE " + pattern;
     }
 

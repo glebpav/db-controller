@@ -80,6 +80,8 @@ public class SelectQueryHandler implements QueryHandler {
             throw new IllegalArgumentException("Invalid LIKE condition format. Expected: 'column LIKE pattern'");
         }
 
+        parts[0] = parts[0].replaceAll("['\"]", "").trim();
+        parts[0] = parts[0].replaceAll("col", "").trim();
         int columnIndex = parseColumnIndex(parts[0]);
         String pattern = parts[1].replaceAll("['\"]", "").trim();
         boolean caseSensitive = !pattern.equals(pattern.toLowerCase());
@@ -94,15 +96,31 @@ public class SelectQueryHandler implements QueryHandler {
             throw new IllegalArgumentException("Invalid condition format. Expected: 'column operator value'");
         }
 
-        int columnIndex = parseColumnIndex(parts[0]);
-        String value = parts[1].replaceAll("['\"]", "").trim();
+        if (operator.equals("=")) {
+            operator = "==";
+        }
 
-        if (isNumeric(value)) {
-            return dataRepository.findRecordsByCondition(
-                    tablePath, columnIndex, operator, Integer.parseInt(value));
-        } else {
-            return dataRepository.findRecordsByConstant(
-                    tablePath, columnIndex, operator, value);
+        parts[0] = parts[0].replaceAll("['\"]", "").trim();
+        parts[0] = parts[0].replaceAll("col", "").trim();
+        int columnIndex = parseColumnIndex(parts[0]);
+
+        if (containColIndex(parts[1])){
+            parts[1] = parts[1].replaceAll("['\"]", "").trim();
+            parts[1] = parts[1].replaceAll("col", "").trim();
+            int columnIndex2 = parseColumnIndex(parts[1]);
+            return dataRepository.findRecordsByCondition(tablePath, columnIndex, operator, columnIndex2);
+        }
+        else {
+            String value = parts[1].replaceAll("['\"]", "").trim();
+            return dataRepository.findRecordsByConstant(tablePath, columnIndex, operator, value);
+        }
+    }
+
+    private boolean containColIndex(String str) {
+        try {
+            return str.contains("col");
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Column index must be a number: " + str);
         }
     }
 

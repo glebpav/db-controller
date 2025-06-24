@@ -1149,8 +1149,12 @@ public class DataRepositoryImpl implements DataRepository {
         }
     }
 
+    private boolean isNumeric(String str) {
+        return str.matches("-?\\d+");
+    }
+
     @Override
-    public List<Integer> findRecordsByConstant(String tablePath, int columnIndex, String operator, Object constant)
+    public List<Integer> findRecordsByConstant(String tablePath, int columnIndex, String operator, String constant)
             throws IOException {
         //validateTxtExtension(tablePath);
 
@@ -1158,7 +1162,6 @@ public class DataRepositoryImpl implements DataRepository {
         int currentIndex = 0;
 
         try (RandomAccessFile file = new RandomAccessFile(tablePath, "r")) {
-            // Получаем схему таблицы
             List<String> schema = getTableSchema(file);
 
             // Валидация индекса колонки
@@ -1175,13 +1178,9 @@ public class DataRepositoryImpl implements DataRepository {
 
             // Проверка соответствия типа константы типу колонки
             String columnType = schema.get(columnIndex);
-            if (columnType.equals("int") && !(constant instanceof Integer)) {
+            if (columnType.equals("int") && !isNumeric(constant)) {
                 throw new IllegalArgumentException(
                         "Column type is int but constant is " + constant.getClass().getSimpleName());
-            }
-            else if (columnType.startsWith("str_") && !(constant instanceof String)) {
-                throw new IllegalArgumentException(
-                        "Column type is string but constant is " + constant.getClass().getSimpleName());
             }
 
             // Получаем количество записей
@@ -1192,8 +1191,15 @@ public class DataRepositoryImpl implements DataRepository {
             // Читаем все записи на текущей странице
             for (int i = 0; i < recordsInPage; i++) {
                 List<Object> record = readRecord(tablePath, currentIndex, 0);
-                if (checkConditionWithConstant(record.get(columnIndex), operator, constant)) {
-                    matchingIndices.add(currentIndex);
+                if (columnType.equals("int")) {
+                    if (checkConditionWithConstant(record.get(columnIndex), operator, Integer.parseInt(constant))) {
+                        matchingIndices.add(currentIndex);
+                    }
+                }
+                else {
+                    if (checkConditionWithConstant(record.get(columnIndex), operator, constant)) {
+                        matchingIndices.add(currentIndex);
+                    }
                 }
                 currentIndex++;
             }

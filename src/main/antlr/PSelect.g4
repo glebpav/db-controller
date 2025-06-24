@@ -30,8 +30,9 @@ where_condition
     ;
 
 expression
-    : NUMBER comparison_operator value          # ColumnComparison
-    | NUMBER KW_LIKE string_pattern             # ColumnLike
+    : string_pattern comparison_operator value          # ColumnComparison
+    | string_pattern KW_LIKE string_pattern             # ColumnLike
+    | string_pattern comparison_operator string_pattern             # ColumnLike
     ;
 
 comparison_operator

@@ -18,7 +18,7 @@ public interface DataRepository {
 
     List<Integer> getAllRecordIndices(String tablePath) throws IOException;
     List<Integer> findRecordsByCondition(String tablePath, int column1, String operator, int column2) throws IOException;
-    List<Integer> findRecordsByConstant(String tablePath, int columnIndex, String operator, Object constant) throws IOException;
+    List<Integer> findRecordsByConstant(String tablePath, int columnIndex, String operator, String constant) throws IOException;
     List<Integer> findRecordsByPattern(String tablePath, int columnIndex, String pattern, boolean caseSensitive) throws IOException;
 
     List<String> getAllTableNames(String dbFilePath) throws IOException;

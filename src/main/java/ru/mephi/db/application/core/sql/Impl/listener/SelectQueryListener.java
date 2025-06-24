@@ -10,7 +10,7 @@ public class SelectQueryListener extends PSelectBaseListener {
     private final List<Integer> columnIndices = new ArrayList<>();
     private String whereClause;
     private boolean hasWhereClause = false;
-    private int whereColumnIndex;
+    private String whereColumnIndex;
     private String whereOperator;
     private Object whereValue;
     private Integer whereSecondColumnIndex; // Для сравнения двух столбцов
@@ -40,17 +40,16 @@ public class SelectQueryListener extends PSelectBaseListener {
         // Парсинг условия WHERE
         if (ctx.expression() != null) {
             if (ctx.expression() instanceof PSelect.ColumnComparisonContext) {
-                PSelect.ColumnComparisonContext compCtx =
-                        (PSelect.ColumnComparisonContext) ctx.expression();
-                this.whereColumnIndex = Integer.parseInt(compCtx.NUMBER().getText());
+                PSelect.ColumnComparisonContext compCtx = (PSelect.ColumnComparisonContext) ctx.expression();
+                this.whereColumnIndex = compCtx.string_pattern().getText().replaceAll("^'|'$", "");;
                 this.whereOperator = compCtx.comparison_operator().getText();
                 this.whereValue = parseValue(compCtx.value());
             } else if (ctx.expression() instanceof PSelect.ColumnLikeContext) {
                 PSelect.ColumnLikeContext likeCtx =
                         (PSelect.ColumnLikeContext) ctx.expression();
-                this.whereColumnIndex = Integer.parseInt(likeCtx.NUMBER().getText());
+                this.whereColumnIndex = likeCtx.string_pattern().get(0).getText().replaceAll("^'|'$", "");
                 this.whereOperator = "LIKE";
-                this.whereValue = likeCtx.string_pattern().getText().replaceAll("^'|'$", "");
+                this.whereValue = likeCtx.string_pattern().get(0).getText().replaceAll("^'|'$", "");
             }
         }
     }
@@ -70,7 +69,7 @@ public class SelectQueryListener extends PSelectBaseListener {
     public List<Integer> getColumnIndices() { return columnIndices; }
     public boolean hasWhereClause() { return hasWhereClause; }
     public String getWhereClause() { return whereClause; }
-    public int getWhereColumnIndex() { return whereColumnIndex; }
+    public String getWhereColumnIndex() { return whereColumnIndex; }
     public String getWhereOperator() { return whereOperator; }
     public Object getWhereValue() { return whereValue; }
     public Integer getWhereSecondColumnIndex() { return whereSecondColumnIndex; }

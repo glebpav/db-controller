@@ -27,8 +27,8 @@ delete_by_condition
     ;
 
 condition
-    : column_index comparison_operator value      #SimpleCondition
-    | column_index KW_LIKE string_pattern         #LikeCondition
+    : string_pattern comparison_operator value      #SimpleCondition
+    | string_pattern KW_LIKE string_pattern         #LikeCondition
     ;
 
 comparison_operator
