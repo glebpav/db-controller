@@ -191,7 +191,7 @@ public class DataRepositoryImpl implements DataRepository {
         }
 
         // Получаем путь к Master DB (в той же директории, где создается таблица)
-        String masterDbPath = path + "\\Master.txt";
+        String masterDbPath = path.resolve("Master.txt").toString();
 
         // Если Master DB не существует - создаем ее
         if (!Files.exists(Paths.get(masterDbPath))) {
@@ -226,7 +226,7 @@ public class DataRepositoryImpl implements DataRepository {
         }
 
         // Добавляем ссылку на таблицу в Master DB
-        addTableReference(masterDbPath.toString(), tableFilePath);
+        addTableReference(masterDbPath, tableFilePath);
     }
 
     /**
@@ -304,7 +304,7 @@ public class DataRepositoryImpl implements DataRepository {
         }
 
         // Получаем путь к Master DB (в той же директории, где удаляемая таблица)
-        String masterDbPath = path + "\\Master.txt";
+        String masterDbPath = path.resolve("Master.txt").toString();
 
         // Если Master DB существует - удаляем из нее ссылку на таблицу
         if (Files.exists(Paths.get(masterDbPath))) {
@@ -1440,58 +1440,58 @@ public class DataRepositoryImpl implements DataRepository {
         return tableNames;
     }
 
-    public static void main(String[] args) {
-        try {
-            DataRepositoryImpl repo = new DataRepositoryImpl();
-            String dbFile = "C:\\BDTest\\Master.txt";
-            String tableFile1 = "C:\\BDTest\\users1.txt";
-            String tableFile2 = "C:\\BDTest\\users2.txt";
-            String tableFile3 = "C:\\BDTest\\users3.txt";
-            String tableFile4 = "C:\\BDTest\\users4.txt";
-            String tableFile5 = "C:\\BDTest\\users5.txt";
-
-            // 1. Создаем БД и таблицу
-            //repo.createDatabaseFile(dbFile, "DB");
-
-            List<String> schema = Arrays.asList("int", "int"); // ID, Name, Age
-            repo.createTableFile(tableFile1, "Users1", schema);
-            repo.createTableFile(tableFile2, "Users2", schema);
-            repo.createTableFile(tableFile3, "Users3", schema);
-            repo.createTableFile(tableFile4, "Users4", schema);
-            repo.createTableFile(tableFile5, "Users5", schema);
-
-            List<String> tablesName = repo.getAllTableNames(dbFile);
-            System.out.println(tablesName);
-
-            repo.deleteTableFile(tableFile3);
-
-            tablesName = repo.getAllTableNames(dbFile);
-            System.out.println(tablesName);
-
-            //repo.addTableReference(dbFile, tableFile);
-
-            // 2. Добавляем 2000 записей
-            //System.out.println("=== Добавляем 5000 записей ===");
-            //for (int i = 0; i < 1000; i++) {
-            //    repo.addRecord(tableFile, Arrays.asList(i+1, 20 + i%30));
-            //}
-            //System.out.println("Успешно добавлено 5000 записей\n");
-
-            // Читаем записи
-            //System.out.println("\nReading records:");
-            //for (int i = 0; i < 1000; i++) {
-            //    List<Object> record = repo.readRecord(tableFile, i, 0);
-            //    System.out.printf("Record %d: %s%n", i, record);
-            //}
-
-            //List<Integer> index = repo.getAllRecordIndices(tableFile);
-            //for (int i = 0; i < index.size(); i++) {
-            //    List<Object> record = repo.readRecord(tableFile, index.get(i), 0);
-            //    System.out.printf("Record %d: %s%n", i, record);
-            //}
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
+//    public static void main(String[] args) {
+//        try {
+//            DataRepositoryImpl repo = new DataRepositoryImpl();
+//            String dbFile = "C:\\BDTest\\Master.txt";
+//            String tableFile1 = "C:\\BDTest\\users1.txt";
+//            String tableFile2 = "C:\\BDTest\\users2.txt";
+//            String tableFile3 = "C:\\BDTest\\users3.txt";
+//            String tableFile4 = "C:\\BDTest\\users4.txt";
+//            String tableFile5 = "C:\\BDTest\\users5.txt";
+//
+//            // 1. Создаем БД и таблицу
+//            //repo.createDatabaseFile(dbFile, "DB");
+//
+//            List<String> schema = Arrays.asList("int", "int"); // ID, Name, Age
+//            repo.createTableFile(tableFile1, "Users1", schema);
+//            repo.createTableFile(tableFile2, "Users2", schema);
+//            repo.createTableFile(tableFile3, "Users3", schema);
+//            repo.createTableFile(tableFile4, "Users4", schema);
+//            repo.createTableFile(tableFile5, "Users5", schema);
+//
+//            List<String> tablesName = repo.getAllTableNames(dbFile);
+//            System.out.println(tablesName);
+//
+//            repo.deleteTableFile(tableFile3);
+//
+//            tablesName = repo.getAllTableNames(dbFile);
+//            System.out.println(tablesName);
+//
+//            //repo.addTableReference(dbFile, tableFile);
+//
+//            // 2. Добавляем 2000 записей
+//            //System.out.println("=== Добавляем 5000 записей ===");
+//            //for (int i = 0; i < 1000; i++) {
+//            //    repo.addRecord(tableFile, Arrays.asList(i+1, 20 + i%30));
+//            //}
+//            //System.out.println("Успешно добавлено 5000 записей\n");
+//
+//            // Читаем записи
+//            //System.out.println("\nReading records:");
+//            //for (int i = 0; i < 1000; i++) {
+//            //    List<Object> record = repo.readRecord(tableFile, i, 0);
+//            //    System.out.printf("Record %d: %s%n", i, record);
+//            //}
+//
+//            //List<Integer> index = repo.getAllRecordIndices(tableFile);
+//            //for (int i = 0; i < index.size(); i++) {
+//            //    List<Object> record = repo.readRecord(tableFile, index.get(i), 0);
+//            //    System.out.printf("Record %d: %s%n", i, record);
+//            //}
+//
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//        }
+//    }
 }

@@ -92,7 +92,7 @@ val integrationTestSourceSet = sourceSets.create("integrationTest") {
 }
 
 fun configureTestTask(task: Test) {
-    task.useJUnit()
+    task.useJUnitPlatform()
     task.filter {
         includeTestsMatching("*Test")
     }
