@@ -22,4 +22,5 @@ public class Query {
     String databasePath;
     String databaseName;
     String transactionName;
+
 }

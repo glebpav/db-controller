@@ -161,7 +161,7 @@ public class SQLParserImpl implements SQLParser {
     }
     private Query parseDelete(CommonTokenStream tokens) throws SQLParseException {
         try {
-            PDelete parser = new PDelete(tokens);
+            PDeleteParser parser = new PDeleteParser(tokens);
             parser.removeErrorListeners();
             parser.addErrorListener(new BaseErrorListener() {
                 @SneakyThrows
@@ -172,7 +172,7 @@ public class SQLParserImpl implements SQLParser {
                 }
             });
 
-            PDelete.QueryContext queryContext = parser.query();
+            PDeleteParser.QueryContext queryContext = parser.query();
             DeleteQueryListener listener = new DeleteQueryListener();
             ParseTreeWalker.DEFAULT.walk(listener, queryContext);
 

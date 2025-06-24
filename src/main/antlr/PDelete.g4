@@ -1,4 +1,4 @@
-parser grammar PDelete;
+grammar PDelete;
 
 options {
     tokenVocab = LCombine;
@@ -10,7 +10,7 @@ query
 
 delete_stmt
     : KW_DELETE KW_FROM table_name
-      (delete_by_row_index | delete_by_condition )?
+      (where_clause | row_index)?
       SEMICOLON?
     ;
 
@@ -18,17 +18,22 @@ table_name
     : ID
     ;
 
-delete_by_row_index
-    : NUMBER
-    ;
-
-delete_by_condition
+where_clause
     : KW_WHERE condition
     ;
 
+row_index
+    : NUMBER
+    ;
+
 condition
-    : string_pattern comparison_operator value      #SimpleCondition
-    | string_pattern KW_LIKE string_pattern         #LikeCondition
+    : column_reference comparison_operator value       #CompareCondition
+    | column_reference KW_LIKE string_pattern         #LikeCondition
+    | column_reference comparison_operator column_reference #ColumnCompareCondition
+    ;
+
+column_reference
+    : COLUMN_PREFIX? NUMBER
     ;
 
 comparison_operator
@@ -41,14 +46,11 @@ comparison_operator
     | OP_EqualMore  // >=
     ;
 
-column_index
-    : NUMBER
-    ;
-
 value
     : STRING
     | NUMBER
     | KW_NULL
+    | column_reference
     ;
 
 string_pattern

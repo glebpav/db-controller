@@ -1,76 +1,90 @@
 package ru.mephi.db.application.core.sql.Impl.listener;
 
-import ru.mephi.db.domain.entity.Query;
-import ru.mephi.db.domain.valueobject.QueryType;
+
 import ru.mephi.sql.parser.PDeleteBaseListener;
-import ru.mephi.sql.parser.PDelete;
+import ru.mephi.sql.parser.PDeleteParser;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class DeleteQueryListener extends PDeleteBaseListener {
     private String tableName;
+    private Integer recordIndex;
+    private final List<Integer> columnIndices = new ArrayList<>(); // Для совместимости
     private String whereClause;
-    private Integer rowIndex;
-    private boolean hasSemicolon = false;
+    private boolean hasWhereClause = false;
+    private String whereColumn;
+    private String whereOperator;
+    private Object whereValue;
+    private String whereSecondColumn; // Для сравнения двух столбцов
 
     @Override
-    public void enterTable_name(PDelete.Table_nameContext ctx) {
+    public void enterTable_name(PDeleteParser.Table_nameContext ctx) {
         this.tableName = ctx.ID().getText();
     }
 
     @Override
-    public void enterSimpleCondition(PDelete.SimpleConditionContext ctx) {
-        String columnIndex = ctx.string_pattern().STRING().getText();
-        String operator = ctx.comparison_operator().getText();
-        String value = getValueText(ctx.value());
-        this.whereClause = columnIndex + " " + operator + " " + value;
+    public void enterRow_index(PDeleteParser.Row_indexContext ctx) {
+        this.recordIndex = Integer.parseInt(ctx.NUMBER().getText());
     }
 
     @Override
-    public void enterLikeCondition(PDelete.LikeConditionContext ctx) {
-        String columnIndex = ctx.string_pattern().get(0).STRING().getText();
-        String pattern = ctx.string_pattern().get(1).STRING().getText();
-        this.whereClause = columnIndex + " LIKE " + pattern;
+    public void enterWhere_clause(PDeleteParser.Where_clauseContext ctx) {
+        this.hasWhereClause = true;
+        this.whereClause = ctx.getText();
     }
 
     @Override
-    public void enterDelete_stmt(PDelete.Delete_stmtContext ctx) {
-        if (ctx.SEMICOLON() != null) {
-            this.hasSemicolon = true;
+    public void enterCompareCondition(PDeleteParser.CompareConditionContext ctx) {
+        this.whereColumn = parseColumn(ctx.column_reference());
+        this.whereOperator = ctx.comparison_operator().getText();
+        this.whereValue = parseValue(ctx.value());
+
+        if (ctx.value().column_reference() != null) {
+            this.whereSecondColumn = parseColumn(ctx.value().column_reference());
         }
+    }
+
+    @Override
+    public void enterLikeCondition(PDeleteParser.LikeConditionContext ctx) {
+        this.whereColumn = parseColumn(ctx.column_reference());
+        this.whereOperator = "LIKE";
+        this.whereValue = ctx.string_pattern().getText().replaceAll("^'|'$", "");
+    }
+
+    @Override
+    public void enterColumnCompareCondition(PDeleteParser.ColumnCompareConditionContext ctx) {
+        this.whereColumn = parseColumn(ctx.column_reference(0));
+        this.whereOperator = ctx.comparison_operator().getText();
+        this.whereSecondColumn = parseColumn(ctx.column_reference(1));
+    }
+
+    private String parseColumn(PDeleteParser.Column_referenceContext ctx) {
+        return (ctx.COLUMN_PREFIX() != null ? ctx.COLUMN_PREFIX().getText() : "") +
+                ctx.NUMBER().getText();
+    }
+
+    private Object parseValue(PDeleteParser.ValueContext ctx) {
+        if (ctx.STRING() != null) {
+            return ctx.STRING().getText().replaceAll("^'|'$", "");
+        } else if (ctx.NUMBER() != null) {
+            return ctx.NUMBER().getText().contains(".")
+                    ? Double.parseDouble(ctx.NUMBER().getText())
+                    : Long.parseLong(ctx.NUMBER().getText());
+        } else if (ctx.KW_NULL() != null) {
+            return null;
+        }
+        throw new IllegalArgumentException("Unknown value type: " + ctx.getText());
     }
 
     // Геттеры
-    public String getTableName() {
-        return tableName;
-    }
-
-    public String getWhereClause() {
-        return whereClause;
-    }
-
-    public boolean hasWhereClause() {
-        return whereClause != null;
-    }
-
-    public Integer getRowIndex() {
-        return rowIndex;
-    }
-
-    public boolean hasRowIndex() {
-        return rowIndex != null;
-    }
-
-    public boolean hasSemicolon() {
-        return hasSemicolon;
-    }
-
-    private String getValueText(PDelete.ValueContext valueCtx) {
-        if (valueCtx.STRING() != null) {
-            return valueCtx.STRING().getText();
-        } else if (valueCtx.NUMBER() != null) {
-            return valueCtx.NUMBER().getText();
-        } else if (valueCtx.KW_NULL() != null) {
-            return "NULL";
-        }
-        throw new IllegalArgumentException("Unknown value type");
-    }
+    public String getTableName() { return tableName; }
+    public Integer getRecordIndex() { return recordIndex; }
+    public List<Integer> getColumnIndices() { return columnIndices; }
+    public boolean hasWhereClause() { return hasWhereClause; }
+    public String getWhereClause() { return whereClause; }
+    public String getWhereColumn() { return whereColumn; }
+    public String getWhereOperator() { return whereOperator; }
+    public Object getWhereValue() { return whereValue; }
+    public String getWhereSecondColumn() { return whereSecondColumn; }
 }

@@ -9,8 +9,8 @@ import ru.mephi.db.application.adapter.db.DataRepository;
 import ru.mephi.db.application.core.ConnectionConfig;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 @RequiredArgsConstructor
 public class DeleteQueryHandler implements QueryHandler {
@@ -25,127 +25,120 @@ public class DeleteQueryHandler implements QueryHandler {
     @Override
     public QueryResult handle(Query query) {
         try {
-            // Валидация
-            if (query.getTable() == null || query.getTable().isEmpty()) {
-                throw new IllegalArgumentException("Table name not specified");
-            }
+            String tableName = query.getTable();
+            String dbFilePath = connectionConfig.getDbPath();
+            String tableFilePath = dbFilePath + "\\" + tableName + ".txt";
+            int deletedCount = 0;
 
-            int deletedCount;
-            String message;
-            String tablePath = connectionConfig.getDbPath() + "\\" + query.getTable() + ".txt";
-
-            // 1. Удаление по индексу строки (DELETE FROM table 42)
-            if (query.getRowIndex() != null) {
-                dataRepository.deleteRecord(tablePath, query.getRowIndex());
-                deletedCount = 1;
-                message = String.format("Deleted row %d from %s", query.getRowIndex(), query.getTable());
-            }
-            // 2. Удаление по условию (DELETE FROM table WHERE ...)
-            else if (query.getWhereClause() != null) {
-                List<Integer> indicesToDelete = findMatchingIndices(query);
-                for (int index : indicesToDelete) {
-                    dataRepository.deleteRecord(tablePath, index);
+            if (query.getWhereClause() != null) {
+                List<Integer> matchingIndices = findMatchingIndices(query);
+                for (int index : matchingIndices) {
+                    dataRepository.deleteRecord(tableFilePath, index);
                 }
-                deletedCount = indicesToDelete.size();
-                message = String.format("Deleted %d rows from %s where %s",
-                        deletedCount, query.getTable(), query.getWhereClause());
-            }
-            // 3. Удаление всех строк (DELETE FROM table)
-            else {
-                List<Integer> allIndices = dataRepository.getAllRecordIndices(tablePath);
+            } else if (query.getRowIndex() != null) {
+                dataRepository.deleteRecord(tableFilePath, query.getRowIndex()) ;
+            } else {
+                // Для очистки таблицы будем удалять записи по одной
+                List<Integer> allIndices = dataRepository.getAllRecordIndices(tableFilePath);
                 for (int index : allIndices) {
-                    dataRepository.deleteRecord(tablePath, index);
+                    dataRepository.deleteRecord(tableFilePath, index);
+
                 }
-                deletedCount = allIndices.size();
-                message = String.format("Deleted all rows (%d) from %s", deletedCount, query.getTable());
             }
 
-            return buildSuccessResult(deletedCount, message);
+            return QueryResult.builder()
+                    .success(true)
+                    .rows(List.of(Map.of("deleted", deletedCount)))
+                    .message(String.format("Deleted %d rows from %s", deletedCount, query.getTable()))
+                    .build();
         } catch (Exception e) {
-            return buildErrorResult(e);
+            return QueryResult.builder()
+                    .success(false)
+                    .rows(List.of())
+                    .message("DELETE failed: " + e.getMessage())
+                    .build();
         }
     }
 
     private List<Integer> findMatchingIndices(Query query) throws IOException {
+        String tableName = query.getTable();
         String whereClause = query.getWhereClause();
-        String tablePath = connectionConfig.getDbPath() + "\\" + query.getTable() + ".txt";
+        String dbFilePath = connectionConfig.getDbPath();
+        String tableFilePath = dbFilePath + "\\" + tableName + ".txt";
 
         if (whereClause == null || whereClause.trim().isEmpty()) {
-            return dataRepository.getAllRecordIndices(tablePath);
+            return dataRepository.getAllRecordIndices(tableFilePath);
         }
 
-        // Обработка LIKE (регистронезависимая)
-        if (whereClause.toUpperCase().contains("LIKE")) {
-            String[] parts = splitCondition(whereClause, "LIKE");
-            int columnIndex = Integer.parseInt(parts[0].trim());
-            String pattern = cleanValue(parts[1]);
-            boolean caseSensitive = !pattern.equals(pattern.toLowerCase());
-            return dataRepository.findRecordsByPattern(tablePath, columnIndex, pattern, caseSensitive);
+        whereClause = whereClause.replaceAll("\\s*(=|!=|<=|>=|<|>|LIKE)\\s*", " $1 ").trim();
+
+        if (whereClause.toUpperCase().contains(" LIKE ")) {
+            return handleLikeCondition(whereClause, tableFilePath);
         }
-        else {
-            String operator = extractOperator(whereClause);
-            String[] parts = splitCondition(whereClause, operator);
 
-            int columnIndex;
-            try {
-                columnIndex = Integer.parseInt(parts[0].trim());
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("Left part of condition must be a column index (number): " + parts[0]);
-            }
-
-            String value = cleanValue(parts[1]);
-
-            if (isNumeric(value)) {
-                return dataRepository.findRecordsByCondition(tablePath, columnIndex, operator, Integer.parseInt(value));
-            } else {
-                return dataRepository.findRecordsByConstant(tablePath, columnIndex, operator, value);
-            }
-        }
+        return handleComparisonCondition(whereClause, tableFilePath);
     }
 
-    private String[] splitCondition(String condition, String operator) {
+    private List<Integer> handleLikeCondition(String condition, String tablePath) throws IOException {
+        String[] parts = condition.split("(?i) LIKE ");
+        if (parts.length != 2) {
+            throw new IllegalArgumentException("Invalid LIKE condition format. Expected: 'column LIKE pattern'");
+        }
+
+        parts[0] = parts[0].replaceAll("['\"]", "").trim();
+        parts[0] = parts[0].replaceAll("col", "").trim();
+        int columnIndex = parseColumnIndex(parts[0]);
+        String pattern = parts[1].replaceAll("['\"]", "").trim();
+        boolean caseSensitive = !pattern.equals(pattern.toLowerCase());
+
+        return dataRepository.findRecordsByPattern(tablePath, columnIndex, pattern, caseSensitive);
+    }
+
+    private List<Integer> handleComparisonCondition(String condition, String tablePath) throws IOException {
+        String operator = extractOperator(condition);
         String[] parts = condition.split(operator, 2);
         if (parts.length != 2) {
             throw new IllegalArgumentException("Invalid condition format. Expected: 'column operator value'");
         }
-        return parts;
+
+        if (operator.equals("=")) {
+            operator = "==";
+        }
+
+        parts[0] = parts[0].replaceAll("['\"]", "").trim();
+        parts[0] = parts[0].replaceAll("col", "").trim();
+        int columnIndex = parseColumnIndex(parts[0]);
+
+        if (containColIndex(parts[1])) {
+            parts[1] = parts[1].replaceAll("['\"]", "").trim();
+            parts[1] = parts[1].replaceAll("col", "").trim();
+            int columnIndex2 = parseColumnIndex(parts[1]);
+            return dataRepository.findRecordsByCondition(tablePath, columnIndex, operator, columnIndex2);
+        } else {
+            String value = parts[1].replaceAll("['\"]", "").trim();
+            return dataRepository.findRecordsByConstant(tablePath, columnIndex, operator, value);
+        }
     }
 
-    private String cleanValue(String value) {
-        // Удаляем все типы кавычек и пробелы
-        return value.trim().replaceAll("[\"']", "");
+    private boolean containColIndex(String str) {
+        return str.contains("col");
     }
 
-    private boolean isNumeric(String str) {
-        return str.matches("-?\\d+(\\.\\d+)?");
+    private int parseColumnIndex(String str) {
+        try {
+            return Integer.parseInt(str.trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Column index must be a number: " + str);
+        }
     }
 
     private String extractOperator(String condition) {
         if (condition.contains("!=")) return "!=";
         if (condition.contains("<=")) return "<=";
         if (condition.contains(">=")) return ">=";
-        if (condition.contains("==")) return "==";
-        if (condition.contains("=")) return "=";  // Обрабатываем и одинарное =
+        if (condition.contains("=")) return "=";
         if (condition.contains(">")) return ">";
         if (condition.contains("<")) return "<";
-        throw new IllegalArgumentException("Unsupported operator. Valid operators: >, <, >=, <=, ==, !=, =");
-    }
-
-    private QueryResult buildSuccessResult(int deletedCount, String message) {
-        return QueryResult.builder()
-                .success(true)
-                .rows(Collections.singletonList(
-                        Collections.singletonMap("deleted_rows", deletedCount)
-                ))
-                .message(message)
-                .build();
-    }
-
-    private QueryResult buildErrorResult(Exception e) {
-        return QueryResult.builder()
-                .success(false)
-                .rows(Collections.emptyList())
-                .message("DELETE failed: " + e.getMessage())
-                .build();
+        throw new IllegalArgumentException("Unsupported operator in condition: " + condition);
     }
 }
