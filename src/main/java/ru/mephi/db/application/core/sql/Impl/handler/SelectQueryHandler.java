@@ -31,17 +31,14 @@ public class SelectQueryHandler implements QueryHandler {
             String tableName = query.getTable();
             String dbFilePath = connectionconfig.getDbPath();
             String tableFilePath = dbFilePath + "\\" + tableName + ".txt";
-            List<Object> values = query.getValues();
-            dataRepository.addRecord(tableFilePath, values);
             List<Map<String, Object>> resultData;
 
             if (query.getWhereClause() != null) {
-
                 List<Integer> matchingIndices = findMatchingIndices(query);
-                resultData = getRecordsByIndices(query.getTable(), matchingIndices, query.getColumnIndices());
+                resultData = getRecordsByIndices(tableFilePath, matchingIndices, query.getColumnIndices());
             } else {
-                List<Integer> allIndices = dataRepository.getAllRecordIndices(query.getTable());
-                resultData = getRecordsByIndices(query.getTable(), allIndices, query.getColumnIndices());
+                List<Integer> allIndices = dataRepository.getAllRecordIndices(tableFilePath);
+                resultData = getRecordsByIndices(tableFilePath, allIndices, query.getColumnIndices());
             }
 
             return QueryResult.builder()
@@ -60,14 +57,16 @@ public class SelectQueryHandler implements QueryHandler {
 
     private List<Integer> findMatchingIndices(Query query) throws IOException {
         String whereClause = query.getWhereClause();
-        String tablePath = query.getTable();
+        String tableName = query.getTable();
+        String dbFilePath = connectionconfig.getDbPath();
+        String tableFilePath = dbFilePath + "\\" + tableName + ".txt";
 
         if (whereClause.contains("LIKE")) {
             String[] parts = whereClause.split("LIKE");
             int columnIndex = Integer.parseInt(parts[0].trim());
             String pattern = parts[1].trim().replaceAll("'", "");
             boolean caseSensitive = !pattern.toLowerCase().equals(pattern);
-            return dataRepository.findRecordsByPattern(tablePath, columnIndex, pattern, caseSensitive);
+            return dataRepository.findRecordsByPattern(tableFilePath, columnIndex, pattern, caseSensitive);
         } else if (whereClause.contains("=") || whereClause.contains(">") || whereClause.contains("<")) {
 
             String operator = extractOperator(whereClause);
@@ -76,10 +75,13 @@ public class SelectQueryHandler implements QueryHandler {
 
             if (parts[1].trim().matches("\\d+")) { // Если второй операнд — число (индекс столбца)
                 int column2 = Integer.parseInt(parts[1].trim());
-                return dataRepository.findRecordsByCondition(tablePath, column1, operator, column2);
+                return dataRepository.findRecordsByCondition(tableFilePath, column1, operator, column2);
             } else { // Если второй операнд — константа (например, 'value')
                 String value = parts[1].trim().replaceAll("'", "");
-                return dataRepository.findRecordsByConstant(tablePath, column1, operator, value);
+
+                System.out.println(value);
+
+                return dataRepository.findRecordsByConstant(tableFilePath, column1, operator, value);
             }
         }
         throw new IllegalArgumentException("Unsupported WHERE condition: " + whereClause);
@@ -87,7 +89,7 @@ public class SelectQueryHandler implements QueryHandler {
 
 
     private String extractOperator(String condition) {
-        if (condition.contains("=")) return "=";
+        if (condition.contains("=")) return "==";
         if (condition.contains(">")) return ">";
         if (condition.contains("<")) return "<";
         throw new IllegalArgumentException("Unknown operator in condition: " + condition);
