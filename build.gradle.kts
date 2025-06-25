@@ -24,34 +24,34 @@ configurations {
 }
 
 dependencies {
+    // Lombok
     implementation(libs.lombok)
     annotationProcessor(libs.lombok)
     testAnnotationProcessor(libs.lombok)
     "integrationTestAnnotationProcessor"(libs.lombok)
 
-    antlr("org.antlr:antlr4:4.13.2")
-    implementation("org.antlr:antlr4-runtime:4.13.2")
+    // ANTLR
+    antlr(libs.antlr)
+    implementation(libs.antlr.runtime)
 
-
+    // Dagger
     implementation(libs.dagger)
     annotationProcessor(libs.dagger.compiler)
     testAnnotationProcessor(libs.dagger.compiler)
     "integrationTestAnnotationProcessor"(libs.dagger.compiler)
 
+    // Misc
     implementation(libs.jetbrains.annotations)
-
     implementation(libs.jansi)
 
-    antlr(libs.antlr)
+    // JUnit
+    testImplementation(libs.junit5.jupiter.api)
+    testRuntimeOnly(libs.junit5.jupiter.engine)
+    testImplementation(libs.junit4)
 
-    testImplementation(libs.junit)
-    testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.2")
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.9.2")
-
+    // Mockito
     testImplementation(libs.mockito.core)
     testImplementation(libs.mockito.junit)
-    testImplementation("org.mockito:mockito-junit-jupiter:4.11.0")
-
     testImplementation(libs.assertJ.core)
 }
 
