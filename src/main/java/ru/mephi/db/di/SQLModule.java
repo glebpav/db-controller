@@ -26,14 +26,14 @@ public abstract class SQLModule {
     @Singleton
     public static QueryExecutor provideQueryExecutor(ConnectionConfig connectionConfig, DataRepository dataRepository, TransactionManager transactionManager) {
         return new QueryExecutorImpl(List.of(
-                new CreateTableHandler(dataRepository, connectionConfig, transactionManager),
-                new SelectQueryHandler(dataRepository, connectionConfig, transactionManager),
-                new InsertQueryHandler(dataRepository, connectionConfig, transactionManager),
-                new DeleteQueryHandler(dataRepository, connectionConfig, transactionManager),
+                new CreateTableHandler(dataRepository, transactionManager),
+                new SelectQueryHandler(dataRepository, transactionManager),
+                new InsertQueryHandler(dataRepository, transactionManager),
+                new DeleteQueryHandler(dataRepository, transactionManager),
                 new BeginTransactionHandler(transactionManager, dataRepository, connectionConfig),
                 new CommitHandler(transactionManager, dataRepository, connectionConfig),
                 new RollbackHandler(transactionManager, dataRepository, connectionConfig),
-                new ShowFilesHandler(),
+                new ShowFilesHandler(connectionConfig),
                 new DropTableHandler(dataRepository, connectionConfig, transactionManager),
                 new ShowTablesHandler(dataRepository, connectionConfig)
         ));

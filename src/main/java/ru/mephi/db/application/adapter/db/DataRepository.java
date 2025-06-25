@@ -6,7 +6,9 @@ import java.util.List;
 public interface DataRepository {
 
     void createTableFile(String tableFilePath, String tableName, List<String> schema) throws IOException;
-
+    void createDatabaseFile(String dbFilePath, String dbName) throws IOException;
+    void addTableReference(String dbFilePath, String tableFilePath) throws IOException;
+    
     void deleteDatabaseFile(String dbFilePath) throws IOException;
     void deleteTableFile(String tableFilePath) throws IOException;
 
@@ -22,4 +24,6 @@ public interface DataRepository {
     List<Integer> findRecordsByPattern(String tablePath, int columnIndex, String pattern, boolean caseSensitive) throws IOException;
 
     List<String> getAllTableNames(String dbFilePath) throws IOException;
+    
+    void removeTableReference(String dbFilePath, String tableFilePath) throws IOException ;
 }

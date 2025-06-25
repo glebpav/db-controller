@@ -44,7 +44,7 @@ public class DataRepositoryImpl implements DataRepository {
      * @throws IOException если произошла ошибка ввода-вывода
      * @throws IllegalArgumentException если имя базы данных превышает 50 символов
      */
-    private void createDatabaseFile(String dbFilePath, String dbName) throws IOException {
+    public void createDatabaseFile(String dbFilePath, String dbName) throws IOException {
         //validateTxtExtension(dbFilePath);
 
         Path path = Paths.get(dbFilePath).getParent();
@@ -73,7 +73,7 @@ public class DataRepositoryImpl implements DataRepository {
      * @throws IOException если произошла ошибка ввода-вывода
      * @throws IllegalArgumentException если таблица уже существует в БД
      */
-    private void addTableReference(String dbFilePath, String tableFilePath) throws IOException {
+    public void addTableReference(String dbFilePath, String tableFilePath) throws IOException {
         //validateTxtExtension(dbFilePath);
         //validateTxtExtension(tableFilePath);
 
@@ -305,7 +305,8 @@ public class DataRepositoryImpl implements DataRepository {
 
         // Получаем путь к Master DB (в той же директории, где удаляемая таблица)
         String masterDbPath = path.resolve("Master.txt").toString();
-
+        System.out.println("deleting table file: " + tableFilePath);
+        System.out.println("masterDbPath: " + masterDbPath);
         // Если Master DB существует - удаляем из нее ссылку на таблицу
         if (Files.exists(Paths.get(masterDbPath))) {
             removeTableReference(masterDbPath, tableFilePath);
@@ -389,12 +390,14 @@ public class DataRepositoryImpl implements DataRepository {
      * @throws IOException если произошла ошибка ввода-вывода
      * @throws IllegalArgumentException если файлы имеют неверное расширение
      */
-    private void removeTableReference(String dbFilePath, String tableFilePath) throws IOException {
+    public void removeTableReference(String dbFilePath, String tableFilePath) throws IOException {
         //validateTxtExtension(dbFilePath);
         //validateTxtExtension(tableFilePath);
 
         Path dbPath = Paths.get(dbFilePath);
         Path targetPath = Paths.get(tableFilePath).normalize();
+
+        System.out.println("removeTableReference: " + dbFilePath + " " + tableFilePath);
 
         if (!Files.exists(dbPath)) {
             throw new FileNotFoundException("Database file not found");

@@ -8,6 +8,9 @@ import ru.mephi.db.domain.valueobject.QueryType;
 import ru.mephi.db.application.adapter.db.DataRepository;
 import ru.mephi.db.application.core.ConnectionConfig;
 import ru.mephi.db.application.core.TransactionManager;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 public class BeginTransactionHandler implements QueryHandler {
@@ -29,11 +32,22 @@ public class BeginTransactionHandler implements QueryHandler {
     @Override
     public QueryResult handle(Query query) {
         try {
+            Boolean isInTransaction = transactionManager.isInTransaction();
+            if(isInTransaction) {
+                return new QueryResult(false, null, "Transaction already started");
+            }
+
             transactionManager.begin();
-            String dbFilePath = connectionConfig.getDbPath().resolve("Master.txt").toString();
+            String dbFilePath = connectionConfig.getMasterPath().toAbsolutePath().toString();
+            if(!Files.exists(Path.of(dbFilePath))) {
+                dataRepository.createDatabaseFile(dbFilePath, "Master");
+            }
+            // TODO: add log to log file for starting transaction
+
             List<String> tableNames = dataRepository.getAllTableNames(dbFilePath);
             for (String tableName : tableNames) {
                 transactionManager.createTempTableCopy(tableName);
+                dataRepository.addTableReference(dbFilePath, transactionManager.getTempTablePath(tableName).toAbsolutePath().toString());
             }
             return new QueryResult(true, null, "Transaction started");
         } catch (Exception e) {

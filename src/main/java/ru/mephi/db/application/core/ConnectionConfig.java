@@ -25,4 +25,8 @@ public class ConnectionConfig {
     public Path getTablePath(String tableName) {
         return dbPath.resolve(tableName + ".txt");
     }
+
+    public Path getMasterPath() {
+        return dbPath.resolve("Master.txt");
+    }
 }

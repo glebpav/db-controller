@@ -7,17 +7,14 @@ import ru.mephi.db.domain.valueobject.QueryType;
 import ru.mephi.db.application.adapter.db.DataRepository;
 import ru.mephi.db.application.core.ConnectionConfig;
 import ru.mephi.db.application.core.TransactionManager;
-import java.util.List;
 
 public class RollbackHandler implements QueryHandler {
     private final TransactionManager transactionManager;
     private final DataRepository dataRepository;
-    private final ConnectionConfig connectionConfig;
 
     public RollbackHandler(TransactionManager transactionManager, DataRepository dataRepository, ConnectionConfig connectionConfig) {
         this.transactionManager = transactionManager;
         this.dataRepository = dataRepository;
-        this.connectionConfig = connectionConfig;
     }
 
     @Override
@@ -28,9 +25,14 @@ public class RollbackHandler implements QueryHandler {
     @Override
     public QueryResult handle(Query query) {
         try {
-            String dbFilePath = connectionConfig.getDbPath().resolve("Master.txt").toString();
-            List<String> tableNames = dataRepository.getAllTableNames(dbFilePath);
-            for (String tableName : tableNames) {
+            Boolean isInTransaction = transactionManager.isInTransaction();
+            if(!isInTransaction) {
+                return new QueryResult(false, null, "No transaction to rollback");
+            }
+            
+            for (String tableName : transactionManager.getTempTables()) {
+                String tempTableFilePath = transactionManager.getTempTablePath(tableName).toAbsolutePath().toString();
+                dataRepository.deleteTableFile(tempTableFilePath);
                 transactionManager.deleteTempTable(tableName);
             }
             transactionManager.rollback();

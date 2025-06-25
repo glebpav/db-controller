@@ -6,7 +6,6 @@ import ru.mephi.db.domain.entity.Query;
 import ru.mephi.db.domain.entity.QueryResult;
 import ru.mephi.db.domain.valueobject.QueryType;
 import ru.mephi.db.application.adapter.db.DataRepository;
-import ru.mephi.db.application.core.ConnectionConfig;
 import ru.mephi.db.application.core.TransactionManager;
 
 import java.io.IOException;
@@ -16,7 +15,6 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class DeleteQueryHandler implements QueryHandler {
     private final DataRepository dataRepository;
-    private final ConnectionConfig connectionConfig;
     private final TransactionManager transactionManager;
 
     @Override
@@ -28,12 +26,7 @@ public class DeleteQueryHandler implements QueryHandler {
     public QueryResult handle(Query query) {
         try {
             String tableName = query.getTable();
-            String tableFilePath;
-            if (transactionManager != null && transactionManager.isInTransaction()) {
-                tableFilePath = String.valueOf(transactionManager.getActualTablePath(tableName));
-            } else {
-                tableFilePath = String.valueOf(connectionConfig.getTablePath(tableName));
-            }
+            String tableFilePath = transactionManager.getActualTablePath(tableName).toString();
     
             int deletedCount = 0;
 
@@ -73,7 +66,7 @@ public class DeleteQueryHandler implements QueryHandler {
         String tableName = query.getTable();
         String whereClause = query.getWhereClause();
 
-        String tableFilePath = String.valueOf(connectionConfig.getTablePath(tableName));
+        String tableFilePath = transactionManager.getActualTablePath(tableName).toString();
 
         if (whereClause == null || whereClause.trim().isEmpty()) {
             return dataRepository.getAllRecordIndices(tableFilePath);
