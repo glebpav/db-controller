@@ -84,11 +84,13 @@ tasks.compileJava {
 // ===========================
 //     Testing
 // ===========================
-val integrationTestSourceSet = sourceSets.create("integrationTest") {
-    java.srcDir("src/integrationTest/java")
-    resources.srcDir("src/integrationTest/resources")
-    compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
-    runtimeClasspath += output + compileClasspath + sourceSets["test"].runtimeClasspath
+sourceSets {
+    create("integrationTest") {
+        java.srcDir("src/integrationTest/java")
+        resources.srcDir("src/integrationTest/resources")
+        compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
+        runtimeClasspath += output + compileClasspath + sourceSets["test"].runtimeClasspath
+    }
 }
 
 fun configureTestTask(task: Test) {
@@ -101,7 +103,7 @@ fun configureTestTask(task: Test) {
     }
 }
 
-tasks.create("integrationTest", Test::class.java) {
+tasks.register<Test>("integrationTest") {
     description = "Runs the integration tests"
     group = "verification"
     testClassesDirs = sourceSets["integrationTest"].output.classesDirs
