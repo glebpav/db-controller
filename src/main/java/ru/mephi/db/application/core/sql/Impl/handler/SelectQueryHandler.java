@@ -33,8 +33,6 @@ public class SelectQueryHandler implements QueryHandler {
 
             List<Map<String, Object>> resultData;
 
-            System.out.println("selecting from: " + tableFilePath);
-
             if (query.getWhereClause() != null) {
                 List<Integer> matchingIndices = findMatchingIndices(query);
                 resultData = getRecordsByIndices(tableFilePath, matchingIndices, query.getColumnIndices());

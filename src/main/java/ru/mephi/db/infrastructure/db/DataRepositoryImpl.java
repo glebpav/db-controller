@@ -305,8 +305,6 @@ public class DataRepositoryImpl implements DataRepository {
 
         // Получаем путь к Master DB (в той же директории, где удаляемая таблица)
         String masterDbPath = path.resolve("Master.txt").toString();
-        System.out.println("deleting table file: " + tableFilePath);
-        System.out.println("masterDbPath: " + masterDbPath);
         // Если Master DB существует - удаляем из нее ссылку на таблицу
         if (Files.exists(Paths.get(masterDbPath))) {
             removeTableReference(masterDbPath, tableFilePath);
@@ -396,8 +394,6 @@ public class DataRepositoryImpl implements DataRepository {
 
         Path dbPath = Paths.get(dbFilePath);
         Path targetPath = Paths.get(tableFilePath).normalize();
-
-        System.out.println("removeTableReference: " + dbFilePath + " " + tableFilePath);
 
         if (!Files.exists(dbPath)) {
             throw new FileNotFoundException("Database file not found");

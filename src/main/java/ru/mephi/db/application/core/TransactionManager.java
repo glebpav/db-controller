@@ -49,7 +49,6 @@ public class TransactionManager {
     public void createTempTableCopy(String tableName) throws IOException {
         Path originalPath = connectionconfig.getTablePath(tableName);
         Path tempPath = getTempTablePath(tableName);
-        System.out.println("creating temp table copy: " + originalPath + " -> " + tempPath);
         Files.copy(originalPath, tempPath, StandardCopyOption.REPLACE_EXISTING);
         addTempTable(tableName);
     }
@@ -58,9 +57,6 @@ public class TransactionManager {
      * Возвращает путь к временной таблице, если транзакция активна и копия существует, иначе к основной
      */
     public Path getActualTablePath(String tableName) {
-        System.out.println("getting actual table path: " + tableName);
-        System.out.println("isInTransaction: " + isInTransaction());
-        System.out.println("tempTables: " + tempTables);
         if (isInTransaction() && tempTables.contains(tableName)) {
             return getTempTablePath(tableName);
         }
@@ -71,8 +67,6 @@ public class TransactionManager {
      * Удаляет временную таблицу (если существует)
      */
     public void deleteTempTable(String tableName) throws IOException {
-        Path tempPath = getTempTablePath(tableName);
-        Files.deleteIfExists(tempPath);
         tempTables.remove(tableName);
     }
 

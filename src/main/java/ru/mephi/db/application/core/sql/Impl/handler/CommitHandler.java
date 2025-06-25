@@ -47,8 +47,6 @@ public class CommitHandler implements QueryHandler {
                 if(!dataRepository.isTableExists(connectionConfig.getMasterPath().toAbsolutePath().toString(), mainTablePath.toString())) {
                     dataRepository.addTableReference(masterPath.toString(), mainTablePath.toString());
                 }
-
-                transactionManager.deleteTempTable(tableName);
             }
 
             transactionManager.commit();
