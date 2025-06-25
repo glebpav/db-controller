@@ -7,6 +7,7 @@ import ru.mephi.db.domain.entity.QueryResult;
 import ru.mephi.db.domain.valueobject.QueryType;
 import ru.mephi.db.application.adapter.db.DataRepository;
 import ru.mephi.db.application.core.ConnectionConfig;
+import ru.mephi.db.application.core.TransactionManager;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -18,6 +19,7 @@ import java.util.Map;
 public class SelectQueryHandler implements QueryHandler {
     private final DataRepository dataRepository;
     private final ConnectionConfig connectionConfig;
+    private final TransactionManager transactionManager;
 
 
     @Override
@@ -29,8 +31,13 @@ public class SelectQueryHandler implements QueryHandler {
     public QueryResult handle(Query query) {
         try {
             String tableName = query.getTable();
-            String tableFilePath = String.valueOf(connectionConfig.getTablePath(tableName));
-    
+            String tableFilePath;
+            if (transactionManager != null && transactionManager.isInTransaction()) {
+                tableFilePath = String.valueOf(transactionManager.getActualTablePath(tableName));
+            } else {
+                tableFilePath = String.valueOf(connectionConfig.getTablePath(tableName));
+            }
+
             List<Map<String, Object>> resultData;
 
             if (query.getWhereClause() != null) {

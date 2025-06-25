@@ -1,7 +1,6 @@
 package ru.mephi.db.application.core.command.impl.handler;
 
 import lombok.AllArgsConstructor;
-import ru.mephi.db.application.adapter.db.LogRepository;
 import ru.mephi.db.application.core.command.CommandHandler;
 import ru.mephi.db.application.core.sql.QueryExecutor;
 import ru.mephi.db.di.qulifier.CommandPriority;
@@ -12,14 +11,12 @@ import ru.mephi.db.domain.entity.Query;
 import ru.mephi.db.domain.entity.QueryResult;
 
 import javax.inject.Inject;
-import java.util.UUID;
 
 @CommandPriority(Priority.HIGH)
 @AllArgsConstructor(onConstructor_ = @Inject)
 public class SQLQueryCommandHandler implements CommandHandler {
     SQLParser sqlParser;
     QueryExecutor queryExecutor;
-    LogRepository logRepository;
 
     @Override
     public boolean canHandle(String input) {
@@ -29,8 +26,6 @@ public class SQLQueryCommandHandler implements CommandHandler {
     @Override
     public void execute(String commandText) throws DatabaseException {
         Query query = sqlParser.parse(commandText);
-        String transactionId = UUID.randomUUID().toString();
-        logRepository.startTransaction(transactionId);
         // TODO: coming soon
         QueryResult result = queryExecutor.execute(query);
         /* if (result.requiresStorage()) {

@@ -5,6 +5,7 @@ import dagger.Module;
 import dagger.Provides;
 import ru.mephi.db.application.adapter.db.DataRepository;
 import ru.mephi.db.application.core.ConnectionConfig;
+import ru.mephi.db.application.core.TransactionManager;
 import ru.mephi.db.application.core.sql.Impl.QueryExecutorImpl;
 import ru.mephi.db.application.core.sql.Impl.SQLParserImpl;
 import ru.mephi.db.application.core.sql.Impl.handler.*;
@@ -23,19 +24,25 @@ public abstract class SQLModule {
 
     @Provides
     @Singleton
-    public static QueryExecutor provideQueryExecutor(ConnectionConfig connectionConfig, DataRepository dataRepository) {
+    public static QueryExecutor provideQueryExecutor(ConnectionConfig connectionConfig, DataRepository dataRepository, TransactionManager transactionManager) {
         return new QueryExecutorImpl(List.of(
-                new CreateTableHandler(dataRepository, connectionConfig),
-                new SelectQueryHandler(dataRepository, connectionConfig),
-                new InsertQueryHandler(dataRepository, connectionConfig),
-                new DeleteQueryHandler(dataRepository, connectionConfig),
-                new BeginTransactionHandler(),
-                new CommitHandler(),
-                new RollbackHandler(),
+                new CreateTableHandler(dataRepository, connectionConfig, transactionManager),
+                new SelectQueryHandler(dataRepository, connectionConfig, transactionManager),
+                new InsertQueryHandler(dataRepository, connectionConfig, transactionManager),
+                new DeleteQueryHandler(dataRepository, connectionConfig, transactionManager),
+                new BeginTransactionHandler(transactionManager, dataRepository, connectionConfig),
+                new CommitHandler(transactionManager, dataRepository, connectionConfig),
+                new RollbackHandler(transactionManager, dataRepository, connectionConfig),
                 new ShowFilesHandler(),
-                new DropTableHandler(dataRepository, connectionConfig),
+                new DropTableHandler(dataRepository, connectionConfig, transactionManager),
                 new ShowTablesHandler(dataRepository, connectionConfig)
         ));
+    }
+
+    @Provides
+    @Singleton
+    public static TransactionManager provideTransactionManager(ConnectionConfig connectionConfig) {
+        return new TransactionManager(connectionConfig);
     }
 
 }
