@@ -32,19 +32,21 @@ public class DeleteQueryHandler implements QueryHandler {
 
             if (query.getWhereClause() != null) {
                 List<Integer> matchingIndices = findMatchingIndices(query);
-                for (int index : matchingIndices) {
-                    dataRepository.deleteRecord(tableFilePath, index);
+                deletedCount = matchingIndices.size();
+                for (int i = matchingIndices.size() - 1; i >= 0; i--) {
+                    dataRepository.deleteRecord(tableFilePath, matchingIndices.get(i));
                 }
-            } else if (query.getRowIndex() != null) {
-                dataRepository.deleteRecord(tableFilePath, query.getRowIndex()) ;
-            } else {
+            } else if (query.getRecordIndex() != null) {
+                deletedCount = 1;
+                dataRepository.deleteRecord(tableFilePath, query.getRecordIndex());
+            } //else {
                 // Для очистки таблицы будем удалять записи по одной
-                List<Integer> allIndices = dataRepository.getAllRecordIndices(tableFilePath);
-                for (int index : allIndices) {
-                    dataRepository.deleteRecord(tableFilePath, index);
+              //  List<Integer> allIndices = dataRepository.getAllRecordIndices(tableFilePath);
+              //  for (int index : allIndices) {
+              //      dataRepository.deleteRecord(tableFilePath, index);
 
-                }
-            }
+              //  }
+            //}
 
             return QueryResult.builder()
                     .success(true)

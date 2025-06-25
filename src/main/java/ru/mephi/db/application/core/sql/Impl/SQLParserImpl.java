@@ -182,6 +182,7 @@ public class SQLParserImpl implements SQLParser {
 
             Query.QueryBuilder builder = Query.builder()
                     .type(QueryType.DELETE)
+                    .recordIndex(listener.getRecordIndex())
                     .table(listener.getTableName());
 
             if (listener.hasWhereClause()) {
@@ -190,7 +191,7 @@ public class SQLParserImpl implements SQLParser {
                 if (whereClause.startsWith("row_index")) {
                     String[] parts = whereClause.split("=");
                     if (parts.length == 2) {
-                        builder.rowIndex(Integer.parseInt(parts[1].trim()));
+                        builder.recordIndex(Integer.parseInt(parts[1].trim()));
                     }
                 } else {
                     builder.whereClause(whereClause);

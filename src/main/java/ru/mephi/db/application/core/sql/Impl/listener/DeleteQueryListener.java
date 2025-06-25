@@ -25,7 +25,8 @@ public class DeleteQueryListener extends PDeleteBaseListener {
 
     @Override
     public void enterRow_index(PDeleteParser.Row_indexContext ctx) {
-        this.recordIndex = Integer.parseInt(ctx.NUMBER().getText());
+        String enterRow = ctx.NUMBER().getText();
+        this.recordIndex = Integer.parseInt(enterRow);
     }
 
     @Override
@@ -36,7 +37,7 @@ public class DeleteQueryListener extends PDeleteBaseListener {
 
     @Override
     public void enterCompareCondition(PDeleteParser.CompareConditionContext ctx) {
-        this.whereColumn = parseColumn(ctx.column_reference());
+        this.whereColumn = ctx.string_pattern().getText();
         this.whereOperator = ctx.comparison_operator().getText();
         this.whereValue = parseValue(ctx.value());
 
@@ -47,16 +48,16 @@ public class DeleteQueryListener extends PDeleteBaseListener {
 
     @Override
     public void enterLikeCondition(PDeleteParser.LikeConditionContext ctx) {
-        this.whereColumn = parseColumn(ctx.column_reference());
+        this.whereColumn = ctx.string_pattern().get(0).getText();
         this.whereOperator = "LIKE";
-        this.whereValue = ctx.string_pattern().getText().replaceAll("^'|'$", "");
+        this.whereValue = ctx.string_pattern().get(1).getText().replaceAll("^'|'$", "");
     }
 
     @Override
     public void enterColumnCompareCondition(PDeleteParser.ColumnCompareConditionContext ctx) {
-        this.whereColumn = parseColumn(ctx.column_reference(0));
+        this.whereColumn = ctx.string_pattern().get(0).getText();
         this.whereOperator = ctx.comparison_operator().getText();
-        this.whereSecondColumn = parseColumn(ctx.column_reference(1));
+        this.whereSecondColumn = ctx.string_pattern().get(1).getText();
     }
 
     private String parseColumn(PDeleteParser.Column_referenceContext ctx) {

@@ -18,7 +18,7 @@ public class Query {
     String whereClause;
     List<Integer> columnIndices;
     List<Object> values;
-    Integer rowIndex;
+    Integer recordIndex;
     String databasePath;
     String databaseName;
     String transactionName;

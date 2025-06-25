@@ -9,27 +9,26 @@ query
     ;
 
 delete_stmt
-    : KW_DELETE KW_FROM table_name
-      (where_clause | row_index)?
-      SEMICOLON?
+    : KW_DELETE KW_FROM table_name (row_index | KW_WHERE where_clause)? SEMICOLON?
     ;
 
 table_name
     : ID
     ;
 
-where_clause
-    : KW_WHERE condition
-    ;
-
 row_index
     : NUMBER
     ;
 
+where_clause
+    : condition
+    ;
+
+
 condition
-    : column_reference comparison_operator value       #CompareCondition
-    | column_reference KW_LIKE string_pattern         #LikeCondition
-    | column_reference comparison_operator column_reference #ColumnCompareCondition
+    : string_pattern comparison_operator value       #CompareCondition
+    | string_pattern KW_LIKE string_pattern         #LikeCondition
+    | string_pattern comparison_operator string_pattern #ColumnCompareCondition
     ;
 
 column_reference
