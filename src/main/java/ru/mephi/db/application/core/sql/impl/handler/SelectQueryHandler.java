@@ -1,4 +1,4 @@
-package ru.mephi.db.application.core.sql.Impl.handler;
+package ru.mephi.db.application.core.sql.impl.handler;
 
 import lombok.RequiredArgsConstructor;
 import ru.mephi.db.application.core.sql.QueryHandler;
@@ -9,55 +9,48 @@ import ru.mephi.db.application.adapter.db.DataRepository;
 import ru.mephi.db.application.core.ConnectionConfig;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 @RequiredArgsConstructor
-public class DeleteQueryHandler implements QueryHandler {
+public class SelectQueryHandler implements QueryHandler {
     private final DataRepository dataRepository;
-    private final ConnectionConfig connectionConfig;
+    private final ConnectionConfig connectionconfig ;
+
 
     @Override
     public boolean canHandle(QueryType type) {
-        return type == QueryType.DELETE;
+        return type == QueryType.SELECT;
     }
 
     @Override
     public QueryResult handle(Query query) {
         try {
             String tableName = query.getTable();
-            String dbFilePath = connectionConfig.getDbPath();
+            String dbFilePath = connectionconfig.getDbPath();
             String tableFilePath = dbFilePath + "\\" + tableName + ".txt";
-            int deletedCount = 0;
+            List<Map<String, Object>> resultData;
 
             if (query.getWhereClause() != null) {
                 List<Integer> matchingIndices = findMatchingIndices(query);
-                deletedCount = matchingIndices.size();
-                for (int i = matchingIndices.size() - 1; i >= 0; i--) {
-                    dataRepository.deleteRecord(tableFilePath, matchingIndices.get(i));
-                }
-            } else if (query.getRecordIndex() != null) {
-                deletedCount = 1;
-                dataRepository.deleteRecord(tableFilePath, query.getRecordIndex());
-            } //else {
-                // Для очистки таблицы будем удалять записи по одной
-              //  List<Integer> allIndices = dataRepository.getAllRecordIndices(tableFilePath);
-              //  for (int index : allIndices) {
-              //      dataRepository.deleteRecord(tableFilePath, index);
-
-              //  }
-            //}
+                resultData = getRecordsByIndices(tableFilePath, matchingIndices, query.getColumnIndices());
+            } else {
+                List<Integer> allIndices = dataRepository.getAllRecordIndices(tableFilePath);
+                resultData = getRecordsByIndices(tableFilePath, allIndices, query.getColumnIndices());
+            }
 
             return QueryResult.builder()
                     .success(true)
-                    .rows(List.of(Map.of("deleted", deletedCount)))
-                    .message(String.format("Deleted %d rows from %s", deletedCount, query.getTable()))
+                    .rows(resultData)
+                    .message(String.format("Selected %d rows from %s", resultData.size(), query.getTable()))
                     .build();
         } catch (Exception e) {
             return QueryResult.builder()
                     .success(false)
                     .rows(List.of())
-                    .message("DELETE failed: " + e.getMessage())
+                    .message("SELECT failed: " + e.getMessage())
                     .build();
         }
     }
@@ -65,7 +58,7 @@ public class DeleteQueryHandler implements QueryHandler {
     private List<Integer> findMatchingIndices(Query query) throws IOException {
         String tableName = query.getTable();
         String whereClause = query.getWhereClause();
-        String dbFilePath = connectionConfig.getDbPath();
+        String dbFilePath = connectionconfig.getDbPath();
         String tableFilePath = dbFilePath + "\\" + tableName + ".txt";
 
         if (whereClause == null || whereClause.trim().isEmpty()) {
@@ -111,27 +104,37 @@ public class DeleteQueryHandler implements QueryHandler {
         parts[0] = parts[0].replaceAll("col", "").trim();
         int columnIndex = parseColumnIndex(parts[0]);
 
-        if (containColIndex(parts[1])) {
+        if (containColIndex(parts[1])){
             parts[1] = parts[1].replaceAll("['\"]", "").trim();
             parts[1] = parts[1].replaceAll("col", "").trim();
             int columnIndex2 = parseColumnIndex(parts[1]);
             return dataRepository.findRecordsByCondition(tablePath, columnIndex, operator, columnIndex2);
-        } else {
+        }
+        else {
             String value = parts[1].replaceAll("['\"]", "").trim();
             return dataRepository.findRecordsByConstant(tablePath, columnIndex, operator, value);
         }
     }
 
     private boolean containColIndex(String str) {
-        return str.contains("col");
+        try {
+            return str.contains("col");
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Column index must be a number: " + str);
+        }
     }
 
+    // Вспомогательные методы
     private int parseColumnIndex(String str) {
         try {
             return Integer.parseInt(str.trim());
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("Column index must be a number: " + str);
         }
+    }
+
+    private boolean isNumeric(String str) {
+        return str.matches("-?\\d+");
     }
 
     private String extractOperator(String condition) {
@@ -142,5 +145,33 @@ public class DeleteQueryHandler implements QueryHandler {
         if (condition.contains(">")) return ">";
         if (condition.contains("<")) return "<";
         throw new IllegalArgumentException("Unsupported operator in condition: " + condition);
+    }
+
+
+    private List<Map<String, Object>> getRecordsByIndices(
+            String tablePath,
+            List<Integer> indices,
+            List<Integer> columnIndices
+    ) throws IOException {
+        List<Map<String, Object>> result = new ArrayList<>();
+
+        for (int index : indices) {
+            List<Object> record = dataRepository.readRecord(tablePath, index, 0); // Предполагаем, что 0 — это смещение
+            Map<String, Object> row = new HashMap<>();
+
+            if (columnIndices == null || columnIndices.isEmpty()) {
+                for (int i = 0; i < record.size(); i++) {
+                    row.put(String.valueOf(i), record.get(i));
+                }
+            } else {
+                for (int colIndex : columnIndices) {
+                    if (colIndex < record.size()) {
+                        row.put(String.valueOf(colIndex), record.get(colIndex));
+                    }
+                }
+            }
+            result.add(row);
+        }
+        return result;
     }
 }

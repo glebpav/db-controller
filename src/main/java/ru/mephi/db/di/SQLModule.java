@@ -5,9 +5,9 @@ import dagger.Module;
 import dagger.Provides;
 import ru.mephi.db.application.adapter.db.DataRepository;
 import ru.mephi.db.application.core.ConnectionConfig;
-import ru.mephi.db.application.core.sql.Impl.QueryExecutorImpl;
-import ru.mephi.db.application.core.sql.Impl.SQLParserImpl;
-import ru.mephi.db.application.core.sql.Impl.handler.*;
+import ru.mephi.db.application.core.sql.impl.QueryExecutorImpl;
+import ru.mephi.db.application.core.sql.impl.SQLParserImpl;
+import ru.mephi.db.application.core.sql.impl.handler.*;
 import ru.mephi.db.application.core.sql.QueryExecutor;
 import ru.mephi.db.application.core.sql.SQLParser;
 

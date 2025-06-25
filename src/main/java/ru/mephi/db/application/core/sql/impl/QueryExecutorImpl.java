@@ -1,4 +1,4 @@
-package ru.mephi.db.application.core.sql.Impl;
+package ru.mephi.db.application.core.sql.impl;
 
 import jakarta.inject.Inject;
 import lombok.AllArgsConstructor;

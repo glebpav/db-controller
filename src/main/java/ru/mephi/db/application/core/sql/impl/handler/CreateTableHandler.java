@@ -1,4 +1,4 @@
-package ru.mephi.db.application.core.sql.Impl.handler;
+package ru.mephi.db.application.core.sql.impl.handler;
 
 import lombok.RequiredArgsConstructor;
 import ru.mephi.db.application.adapter.db.DataRepository;

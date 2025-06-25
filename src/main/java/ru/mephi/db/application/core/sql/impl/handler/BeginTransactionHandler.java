@@ -1,5 +1,5 @@
 // BeginTransactionHandler.java
-package ru.mephi.db.application.core.sql.Impl.handler;
+package ru.mephi.db.application.core.sql.impl.handler;
 
 import ru.mephi.db.application.core.sql.QueryHandler;
 import ru.mephi.db.domain.entity.Query;
