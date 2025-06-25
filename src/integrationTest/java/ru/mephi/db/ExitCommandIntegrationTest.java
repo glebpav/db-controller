@@ -13,7 +13,7 @@ public class ExitCommandIntegrationTest extends BaseIntegration {
         component.getTestModule().addToInputList("exit");
 
         // Act & Assert
-        Exception e = assertThrows(DatabaseQuitException.class, () -> {
+        assertThrows(DatabaseQuitException.class, () -> {
             component.getHandleUserInputUseCase().execute();
         });
         assertTrue(component.getTestModule().getOutputText().contains("Goodbye, dear!"));
@@ -25,7 +25,7 @@ public class ExitCommandIntegrationTest extends BaseIntegration {
         component.getTestModule().addToInputList(":q");
 
         // Act & Assert
-        Exception e = assertThrows(DatabaseQuitException.class, () -> {
+        assertThrows(DatabaseQuitException.class, () -> {
             component.getHandleUserInputUseCase().execute();
         });
         assertTrue(component.getTestModule().getOutputText().contains("Goodbye, dear!"));
@@ -37,7 +37,7 @@ public class ExitCommandIntegrationTest extends BaseIntegration {
         component.getTestModule().addToInputList("quit");
 
         // Act & Assert
-        Exception e = assertThrows(DatabaseQuitException.class, () -> {
+        assertThrows(DatabaseQuitException.class, () -> {
             component.getHandleUserInputUseCase().execute();
         });
         assertTrue(component.getTestModule().getOutputText().contains("Goodbye, dear!"));

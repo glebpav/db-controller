@@ -44,4 +44,8 @@ public class TestModule {
         inputBoundary.addToInputList(input);
     }
 
+    public void clearIO() {
+        inputBoundary.clearInputs();
+        outputBoundary.clearOutput();
+    }
 }

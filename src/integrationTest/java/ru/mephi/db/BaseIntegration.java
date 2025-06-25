@@ -27,6 +27,9 @@ public abstract class BaseIntegration {
 
     @AfterEach
     public void tearDown() throws Exception {
+        component.getTestModule().clearIO();
+        component.getTestModule().clearIO();
+
         if (lock != null) {
             component.getExitDatabaseUseCase().execute(lock);
         }
