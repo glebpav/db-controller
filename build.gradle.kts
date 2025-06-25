@@ -19,42 +19,6 @@ tasks.jar {
     }
 }
 
-configurations {
-    maybeCreate("integrationTestAnnotationProcessor")
-}
-
-dependencies {
-    // Lombok
-    implementation(libs.lombok)
-    annotationProcessor(libs.lombok)
-    testAnnotationProcessor(libs.lombok)
-    "integrationTestAnnotationProcessor"(libs.lombok)
-
-    // ANTLR
-    antlr(libs.antlr)
-    implementation(libs.antlr.runtime)
-
-    // Dagger
-    implementation(libs.dagger)
-    annotationProcessor(libs.dagger.compiler)
-    testAnnotationProcessor(libs.dagger.compiler)
-    "integrationTestAnnotationProcessor"(libs.dagger.compiler)
-
-    // Misc
-    implementation(libs.jetbrains.annotations)
-    implementation(libs.jansi)
-
-    // JUnit
-    testImplementation(libs.junit5.jupiter.api)
-    testRuntimeOnly(libs.junit5.jupiter.engine)
-    testImplementation(libs.junit4)
-
-    // Mockito
-    testImplementation(libs.mockito.core)
-    testImplementation(libs.mockito.junit)
-    testImplementation(libs.assertJ.core)
-}
-
 // ===========================
 //     ANTLR
 // ===========================
@@ -93,14 +57,24 @@ sourceSets {
     }
 }
 
-fun configureTestTask(task: Test) {
-    task.useJUnitPlatform()
-    task.filter {
-        includeTestsMatching("*Test")
+listOf(
+    "AnnotationProcessor",
+    "Implementation",
+    "RuntimeOnly",
+    "CompileOnly"
+).forEach { suffix ->
+    configurations.named("integrationTest$suffix") {
+        extendsFrom(configurations.getByName("test$suffix"))
     }
-    task.testLogging {
-        events("passed", "skipped", "failed")
-    }
+}
+
+fun configureTestTask(task: Test) = task.apply {
+    useJUnitPlatform()
+
+    filter.includeTestsMatching("*Test")
+    testLogging.events("passed", "skipped", "failed")
+
+    outputs.upToDateWhen { false }
 }
 
 tasks.register<Test>("integrationTest") {
@@ -108,8 +82,6 @@ tasks.register<Test>("integrationTest") {
     group = "verification"
     testClassesDirs = sourceSets["integrationTest"].output.classesDirs
     classpath = sourceSets["integrationTest"].runtimeClasspath
-    outputs.upToDateWhen { false }
-    mustRunAfter("test")
 
     configureTestTask(this)
 }
@@ -118,3 +90,35 @@ tasks.test {
     configureTestTask(this)
 }
 
+// ===========================
+//     Dependencies
+// ===========================
+dependencies {
+    // Lombok
+    implementation(libs.lombok)
+    annotationProcessor(libs.lombok)
+    testAnnotationProcessor(libs.lombok)
+
+    // ANTLR
+    antlr(libs.antlr)
+    implementation(libs.antlr.runtime)
+
+    // Dagger
+    implementation(libs.dagger)
+    annotationProcessor(libs.dagger.compiler)
+    testAnnotationProcessor(libs.dagger.compiler)
+
+    // Misc
+    implementation(libs.jetbrains.annotations)
+    implementation(libs.jansi)
+
+    // JUnit
+    testImplementation(libs.junit5.jupiter.api)
+    testRuntimeOnly(libs.junit5.jupiter.engine)
+    testImplementation(libs.junit4)
+
+    // Mockito
+    testImplementation(libs.mockito.core)
+    testImplementation(libs.mockito.junit)
+    testImplementation(libs.assertJ.core)
+}
