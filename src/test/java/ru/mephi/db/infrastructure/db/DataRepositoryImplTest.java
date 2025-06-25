@@ -1,4 +1,4 @@
-package unit.ru.mephi.db.infrastructure.db;
+package ru.mephi.db.infrastructure.db;
 
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;

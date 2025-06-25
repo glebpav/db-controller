@@ -1,45 +1,39 @@
-// HelpCommandIntegrationTest.java
 package ru.mephi.db;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import ru.mephi.db.exception.DatabaseQuitException;
 
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class HelpCommandIntegrationTest extends BaseIntegration {
 
     @Test
-    public void testHelpCommand() throws Exception {
+    public void testHelpCommand() {
         // Arrange
         component.getTestModule().addToInputList("help");
         component.getTestModule().addToInputList("exit");
 
         // Act & Assert
-        try {
+        assertThrows(DatabaseQuitException.class, () -> {
             component.getHandleUserInputUseCase().execute();
-        } catch (Exception e) {
-            assertTrue(e instanceof DatabaseQuitException);
-            String output = component.getTestModule().getOutputText();
-            assertTrue(output.contains("There is no help =("));
-            assertTrue(output.contains("Goodbye, dear!"));
-        }
-
+        });
+        String output = component.getTestModule().getOutputText();
+        assertTrue(output.contains("There is no help =("));
+        assertTrue(output.contains("Goodbye, dear!"));
     }
 
     @Test
-    public void testHelpWithAlias() throws Exception {
+    public void testHelpWithAlias() {
         // Arrange
         component.getTestModule().addToInputList(":h");
         component.getTestModule().addToInputList("exit");
 
-        // Act
-        try {
+        // Act & Assert
+        assertThrows(DatabaseQuitException.class, () -> {
             component.getHandleUserInputUseCase().execute();
-        } catch (Exception e) {
-            assertTrue(e instanceof DatabaseQuitException);
-            String output = component.getTestModule().getOutputText();
-            assertTrue(output.contains("There is no help =("));
-            assertTrue(output.contains("Goodbye, dear!"));
-        }
+        });
+        String output = component.getTestModule().getOutputText();
+        assertTrue(output.contains("There is no help =("));
+        assertTrue(output.contains("Goodbye, dear!"));
     }
 }

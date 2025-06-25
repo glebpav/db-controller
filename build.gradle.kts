@@ -124,9 +124,11 @@ dependencies {
     implementation(libs.jansi)
 
     // JUnit
-    testImplementation(libs.junit5.jupiter.api)
-    testRuntimeOnly(libs.junit5.jupiter.engine)
-    testImplementation(libs.junit4)
+    testImplementation(platform(libs.junit.bom))
+    testImplementation(libs.junit.jupiter.api)
+    testRuntimeOnly(libs.junit.jupiter.engine)
+    testRuntimeOnly(libs.junit.platform.launcher)
+    implementation(libs.apiguardian)
 
     // Mockito
     testImplementation(libs.mockito.core)
