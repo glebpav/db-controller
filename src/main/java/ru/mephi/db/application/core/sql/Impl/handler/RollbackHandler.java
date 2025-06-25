@@ -4,6 +4,10 @@ import ru.mephi.db.application.core.sql.QueryHandler;
 import ru.mephi.db.domain.entity.Query;
 import ru.mephi.db.domain.entity.QueryResult;
 import ru.mephi.db.domain.valueobject.QueryType;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import ru.mephi.db.application.adapter.db.DataRepository;
 import ru.mephi.db.application.core.ConnectionConfig;
 import ru.mephi.db.application.core.TransactionManager;
@@ -31,8 +35,8 @@ public class RollbackHandler implements QueryHandler {
             }
             
             for (String tableName : transactionManager.getTempTables()) {
-                String tempTableFilePath = transactionManager.getTempTablePath(tableName).toAbsolutePath().toString();
-                dataRepository.deleteTableFile(tempTableFilePath);
+                Path tempTableFilePath = transactionManager.getTempTablePath(tableName).toAbsolutePath();
+                if (Files.exists(tempTableFilePath)) dataRepository.deleteTableFile(tempTableFilePath.toString());
                 transactionManager.deleteTempTable(tableName);
             }
             transactionManager.rollback();

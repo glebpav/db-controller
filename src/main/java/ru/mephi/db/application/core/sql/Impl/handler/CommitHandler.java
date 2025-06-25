@@ -41,11 +41,15 @@ public class CommitHandler implements QueryHandler {
                 Path masterPath = connectionConfig.getMasterPath().toAbsolutePath();
                 if (Files.exists(tempTableFilePath)) {
                     Files.copy(tempTableFilePath, mainTablePath, StandardCopyOption.REPLACE_EXISTING);
-                }
-                dataRepository.deleteTableFile(tempTableFilePath.toString());
-
-                if(!dataRepository.isTableExists(connectionConfig.getMasterPath().toAbsolutePath().toString(), mainTablePath.toString())) {
-                    dataRepository.addTableReference(masterPath.toString(), mainTablePath.toString());
+                    if(!dataRepository.isTableExists(connectionConfig.getMasterPath().toAbsolutePath().toString(), mainTablePath.toString())) {
+                        dataRepository.addTableReference(masterPath.toString(), mainTablePath.toString());
+                    }
+                    dataRepository.deleteTableFile(tempTableFilePath.toString());
+                } else {
+                    dataRepository.deleteTableFile(mainTablePath.toString());
+                    if(dataRepository.isTableExists(connectionConfig.getMasterPath().toAbsolutePath().toString(), tempTableFilePath.toString())) {
+                        dataRepository.removeTableReference(masterPath.toString(), tempTableFilePath.toString());
+                    }
                 }
             }
 
