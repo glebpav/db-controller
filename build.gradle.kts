@@ -75,6 +75,17 @@ fun configureTestTask(task: Test) = task.apply {
     testLogging.events("passed", "skipped", "failed")
 
     outputs.upToDateWhen { false }
+
+    doFirst {
+        val agentJar = configurations.testRuntimeClasspath.get()
+            .files
+            .firstOrNull { it.name.contains("byte-buddy-agent") }
+        if (agentJar != null) {
+            jvmArgs("-javaagent:${agentJar.absolutePath}")
+        } else {
+            logger.warn("Byte Buddy agent not found on testRuntimeClasspath.")
+        }
+    }
 }
 
 tasks.register<Test>("integrationTest") {
