@@ -2,7 +2,6 @@ package ru.mephi.db.application.core.sql.Impl.handler;
 
 import lombok.RequiredArgsConstructor;
 import ru.mephi.db.application.adapter.db.DataRepository;
-import ru.mephi.db.application.core.ConnectionConfig;
 import ru.mephi.db.application.core.TransactionManager;
 import ru.mephi.db.application.core.sql.QueryHandler;
 import ru.mephi.db.domain.entity.Query;
@@ -12,7 +11,6 @@ import ru.mephi.db.domain.valueobject.QueryType;
 @RequiredArgsConstructor
 public class DropTableHandler implements QueryHandler {
     private final DataRepository dataRepository;
-    private final ConnectionConfig connectionConfig;
     private final TransactionManager transactionManager;
 
     @Override
@@ -33,12 +31,7 @@ public class DropTableHandler implements QueryHandler {
                 );
             }
 
-            String tableFilePath;
-            if (transactionManager != null && transactionManager.isInTransaction()) {
-                tableFilePath = String.valueOf(transactionManager.getActualTablePath(tableName));
-            } else {
-                tableFilePath = String.valueOf(connectionConfig.getTablePath(tableName));
-            }
+            String tableFilePath = transactionManager.getActualTablePath(tableName).toString();
     
             dataRepository.deleteTableFile(tableFilePath);
 

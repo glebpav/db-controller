@@ -2,6 +2,7 @@ package ru.mephi.db.application.core.sql.Impl.handler;
 
 import lombok.RequiredArgsConstructor;
 import ru.mephi.db.application.adapter.db.DataRepository;
+import ru.mephi.db.application.core.ConnectionConfig;
 import ru.mephi.db.application.core.TransactionManager;
 import ru.mephi.db.application.core.sql.QueryHandler;
 import ru.mephi.db.domain.entity.Query;
@@ -9,6 +10,8 @@ import ru.mephi.db.domain.entity.QueryResult;
 import ru.mephi.db.domain.valueobject.QueryType;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Collections;
 import java.util.stream.Collectors;
@@ -17,6 +20,7 @@ import java.util.stream.Collectors;
 public class CreateTableHandler implements QueryHandler {
     private final DataRepository dataRepository;
     private final TransactionManager transactionManager;
+    private final ConnectionConfig connectionConfig;
 
     @Override
     public boolean canHandle(QueryType type) {
@@ -27,8 +31,13 @@ public class CreateTableHandler implements QueryHandler {
     public QueryResult handle(Query query) {
         String tableName = query.getTable();
         List<String> schema = query.getSchema();
+        Path mainTablePath = connectionConfig.getTablePath(tableName).toAbsolutePath();
 
-        String tableFilePath = transactionManager.getActualTablePath(tableName).toString();
+        if (!Files.exists(mainTablePath)) {
+            transactionManager.addTempTable(tableName);
+        }
+        
+        String tableFilePath = transactionManager.getTempTablePath(tableName).toString();
 
         try {
             List<String> storageSchema = schema.stream()
