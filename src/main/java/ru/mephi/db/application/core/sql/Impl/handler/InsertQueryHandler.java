@@ -7,7 +7,6 @@ import ru.mephi.db.application.core.sql.QueryHandler;
 import ru.mephi.db.domain.entity.Query;
 import ru.mephi.db.domain.entity.QueryResult;
 import ru.mephi.db.domain.valueobject.QueryType;
-import ru.mephi.db.infrastructure.db.DataRepositoryImpl;
 import java.util.List;
 import java.util.Map;
 

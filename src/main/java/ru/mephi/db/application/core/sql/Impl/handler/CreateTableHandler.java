@@ -9,7 +9,6 @@ import ru.mephi.db.domain.entity.QueryResult;
 import ru.mephi.db.domain.valueobject.QueryType;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Collections;
 import java.util.stream.Collectors;

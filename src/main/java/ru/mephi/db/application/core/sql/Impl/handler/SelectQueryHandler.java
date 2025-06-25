@@ -132,10 +132,6 @@ public class SelectQueryHandler implements QueryHandler {
         }
     }
 
-    private boolean isNumeric(String str) {
-        return str.matches("-?\\d+");
-    }
-
     private String extractOperator(String condition) {
         if (condition.contains("!=")) return "!=";
         if (condition.contains("<=")) return "<=";

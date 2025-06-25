@@ -1077,7 +1077,6 @@ public class DataRepositoryImpl implements DataRepository {
             // Получаем общее количество записей
             file.seek(50);
             int recordsInPage = file.readInt();
-            int totalRecords = file.readInt();
 
             // Читаем все записи на текущей странице
             for (int i = 0; i < recordsInPage; i++) {
@@ -1186,7 +1185,6 @@ public class DataRepositoryImpl implements DataRepository {
             // Получаем количество записей
             file.seek(50);
             int recordsInPage = file.readInt();
-            int totalRecords = file.readInt();
 
             // Читаем все записи на текущей странице
             for (int i = 0; i < recordsInPage; i++) {
@@ -1309,7 +1307,6 @@ public class DataRepositoryImpl implements DataRepository {
             // Получаем количество записей
             file.seek(50);
             int recordsInPage = file.readInt();
-            int totalRecords = file.readInt();
 
             // Читаем все записи на текущей странице
             for (int i = 0; i < recordsInPage; i++) {
@@ -1372,7 +1369,6 @@ public class DataRepositoryImpl implements DataRepository {
         //validateTxtExtension(tablePath);
 
         List<Integer> allIndices = new ArrayList<>();
-        int currentIndex = 0;
 
         try (RandomAccessFile file = new RandomAccessFile(tablePath, "r")) {
             // Получаем количество записей на текущей странице
