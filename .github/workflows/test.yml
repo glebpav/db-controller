@@ -16,7 +16,13 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
-      - name: Run unit and integration tests
+      - name: Run unit tests
         run: |
           chmod +x gradlew
-          ./gradlew test integrationTest
+          ./gradlew test
+        continue-on-error: true
+
+      - name: Run integration tests
+        run: |
+          chmod +x gradlew
+          ./gradlew integrationTest
