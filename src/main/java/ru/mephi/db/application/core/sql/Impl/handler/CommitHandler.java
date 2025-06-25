@@ -7,19 +7,12 @@ import ru.mephi.db.domain.valueobject.QueryType;
 import ru.mephi.db.application.adapter.db.DataRepository;
 import ru.mephi.db.application.core.ConnectionConfig;
 import ru.mephi.db.application.core.TransactionManager;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 
 public class CommitHandler implements QueryHandler {
     private final TransactionManager transactionManager;
-    private final DataRepository dataRepository;
-    private final ConnectionConfig connectionConfig;
 
     public CommitHandler(TransactionManager transactionManager, DataRepository dataRepository, ConnectionConfig connectionConfig) {
         this.transactionManager = transactionManager;
-        this.dataRepository = dataRepository;
-        this.connectionConfig = connectionConfig;
     }
 
     @Override
@@ -30,27 +23,8 @@ public class CommitHandler implements QueryHandler {
     @Override
     public QueryResult handle(Query query) {
         try {
-            Boolean isInTransaction = transactionManager.isInTransaction();
-            if(!isInTransaction) {
+            if(!transactionManager.isInTransaction()) {
                 return new QueryResult(false, null, "No transaction to commit");
-            }
-
-            for (String tableName : transactionManager.getTempTables()) {
-                Path tempTableFilePath = transactionManager.getTempTablePath(tableName).toAbsolutePath();
-                Path mainTablePath = connectionConfig.getTablePath(tableName).toAbsolutePath();
-                Path masterPath = connectionConfig.getMasterPath().toAbsolutePath();
-                if (Files.exists(tempTableFilePath)) {
-                    Files.copy(tempTableFilePath, mainTablePath, StandardCopyOption.REPLACE_EXISTING);
-                    if(!dataRepository.isTableExists(connectionConfig.getMasterPath().toAbsolutePath().toString(), mainTablePath.toString())) {
-                        dataRepository.addTableReference(masterPath.toString(), mainTablePath.toString());
-                    }
-                    dataRepository.deleteTableFile(tempTableFilePath.toString());
-                } else {
-                    dataRepository.deleteTableFile(mainTablePath.toString());
-                    if(dataRepository.isTableExists(connectionConfig.getMasterPath().toAbsolutePath().toString(), tempTableFilePath.toString())) {
-                        dataRepository.removeTableReference(masterPath.toString(), tempTableFilePath.toString());
-                    }
-                }
             }
 
             transactionManager.commit();
