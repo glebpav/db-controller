@@ -15,7 +15,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class DropTableHandler implements QueryHandler {
     private final DataRepository dataRepository;
-    private final ConnectionConfig connectionconfig ;
+    private final ConnectionConfig connectionConfig ;
 
     @Override
     public boolean canHandle(QueryType type) {
@@ -35,8 +35,7 @@ public class DropTableHandler implements QueryHandler {
                 );
             }
 
-            String dbFilePath = connectionconfig.getDbPath();
-            String tableFilePath = dbFilePath + "\\" + tableName + ".txt";
+            String tableFilePath = String.valueOf(connectionConfig.getTablePath(tableName));
 
            dataRepository.deleteTableFile(tableFilePath);
 

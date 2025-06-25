@@ -24,7 +24,7 @@ public class ShowTablesHandler implements QueryHandler {
     @Override
     public QueryResult handle(Query query) {
         try {
-            String dbFilePath = connectionconfig.getDbPath();
+            String dbFilePath = String.valueOf(connectionconfig.getDbPath());
             String dataBaseFilePath = dbFilePath + "\\" + "Master.txt";
             List<String> tablesName = dataRepository.getAllTableNames(dataBaseFilePath);
             return new QueryResult(

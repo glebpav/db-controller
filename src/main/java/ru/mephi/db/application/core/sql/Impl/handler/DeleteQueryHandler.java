@@ -26,8 +26,8 @@ public class DeleteQueryHandler implements QueryHandler {
     public QueryResult handle(Query query) {
         try {
             String tableName = query.getTable();
-            String dbFilePath = connectionConfig.getDbPath();
-            String tableFilePath = dbFilePath + "\\" + tableName + ".txt";
+            String tableFilePath = String.valueOf(connectionConfig.getTablePath(tableName));
+        
             int deletedCount = 0;
 
             if (query.getWhereClause() != null) {
@@ -65,8 +65,8 @@ public class DeleteQueryHandler implements QueryHandler {
     private List<Integer> findMatchingIndices(Query query) throws IOException {
         String tableName = query.getTable();
         String whereClause = query.getWhereClause();
-        String dbFilePath = connectionConfig.getDbPath();
-        String tableFilePath = dbFilePath + "\\" + tableName + ".txt";
+
+        String tableFilePath = String.valueOf(connectionConfig.getTablePath(tableName));
 
         if (whereClause == null || whereClause.trim().isEmpty()) {
             return dataRepository.getAllRecordIndices(tableFilePath);

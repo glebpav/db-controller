@@ -14,7 +14,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class InsertQueryHandler implements QueryHandler {
     private final DataRepository dataRepository;
-    private final ConnectionConfig connectionconfig ;
+    private final ConnectionConfig connectionConfig ;
 
     @Override
     public boolean canHandle(QueryType type) {
@@ -25,8 +25,7 @@ public class InsertQueryHandler implements QueryHandler {
     public QueryResult handle(Query query) {
         try {
             String tableName = query.getTable();
-            String dbFilePath = connectionconfig.getDbPath();
-            String tableFilePath = dbFilePath + "\\" + tableName + ".txt";
+            String tableFilePath = String.valueOf(connectionConfig.getTablePath(tableName));
             List<Object> values = query.getValues();
             dataRepository.addRecord(tableFilePath, values);
 

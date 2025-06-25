@@ -17,7 +17,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class SelectQueryHandler implements QueryHandler {
     private final DataRepository dataRepository;
-    private final ConnectionConfig connectionconfig ;
+    private final ConnectionConfig connectionConfig;
 
 
     @Override
@@ -29,8 +29,8 @@ public class SelectQueryHandler implements QueryHandler {
     public QueryResult handle(Query query) {
         try {
             String tableName = query.getTable();
-            String dbFilePath = connectionconfig.getDbPath();
-            String tableFilePath = dbFilePath + "\\" + tableName + ".txt";
+            String tableFilePath = String.valueOf(connectionConfig.getTablePath(tableName));
+    
             List<Map<String, Object>> resultData;
 
             if (query.getWhereClause() != null) {
@@ -58,8 +58,7 @@ public class SelectQueryHandler implements QueryHandler {
     private List<Integer> findMatchingIndices(Query query) throws IOException {
         String tableName = query.getTable();
         String whereClause = query.getWhereClause();
-        String dbFilePath = connectionconfig.getDbPath();
-        String tableFilePath = dbFilePath + "\\" + tableName + ".txt";
+        String tableFilePath = String.valueOf(connectionConfig.getTablePath(tableName));
 
         if (whereClause == null || whereClause.trim().isEmpty()) {
             return dataRepository.getAllRecordIndices(tableFilePath);
