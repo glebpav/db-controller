@@ -3,29 +3,30 @@ package ru.mephi.db.testBoundary;
 import lombok.Getter;
 import ru.mephi.db.application.adapter.io.InputBoundary;
 
-import java.util.Deque;
 import java.util.LinkedList;
+import java.util.Queue;
 
 public class TestInputBoundaryImpl implements InputBoundary {
 
     @Getter
     private static final TestInputBoundaryImpl instance = new TestInputBoundaryImpl();
 
-    private final Deque<String> inputList;
+    private final Queue<String> inputQueue;
 
     private TestInputBoundaryImpl() {
-        inputList = new LinkedList<>();
+        inputQueue = new LinkedList<>();
     }
 
     @Override
     public String next() {
-        String nextInput = inputList.getLast();
-        inputList.removeLast();
-        return nextInput;
+        return inputQueue.poll();
     }
 
     public void addToInputList(String input) {
-        inputList.addFirst(input);
+        inputQueue.add(input);
     }
 
+    public void clearInputs() {
+        inputQueue.clear();
+    }
 }

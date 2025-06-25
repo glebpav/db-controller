@@ -1,9 +1,40 @@
 lexer grammar LKeywords;
+
 import LLetters;
 
-KW_SELECT       : S E L E C T;
+
+KW_BEGIN: B E G I N | 'begin' | 'Begin';
+KW_TRANSACTION: T R A N S A C T I O N | 'transaction' | 'Transaction';
 KW_FROM         : F R O M    ;
 KW_WHERE        : W H E R E  ;
 KW_AS           : A S        ;
 KW_STAR         : '*'        ;
-KW_COMMA        :  ','       ;
+KW_COMMA        : ','        ;
+KW_INSERT: [Ii][Nn][Ss][Ee][Rr][Tt];
+KW_SELECT: [Ss][Ee][Ll][Ee][Cc][Tt];
+KW_INTO         : I N T O    ;
+KW_VALUES       : V A L U E S;
+KW_SHOW : [Ss][Hh][Oo][Ww] ;
+KW_TABLES       : T A B L E S;
+KW_CREATE       : C R E A T E;
+KW_TABLE        : T A B L E;
+KW_DROP         : D R O P;
+KW_NOT          : N O T;
+KW_DEFAULT      : D E F A U L T;
+KW_PRIMARY      : P R I M A R Y;
+KW_KEY          : K E Y;
+KW_FOREIGN      : F O R E I G N;
+KW_REFERENCES   : R E F E R E N C E S;
+KW_LIKE         : L I K E;
+KW_INT          : I N T;
+KW_STR          : S T R;
+NUMBER  : [0-9]+ ('.' [0-9]+)?;
+KW_TEXT         : T E X T;
+KW_VARCHAR      : V A R C H A R;
+KW_COMMIT       : C O M M I T;
+KW_ROLLBACK     : R O L L B A C K;
+KW_DELETE       : D E L E T E;
+KW_IS           : I S;
+KW_FOR          : F O R;
+KW_DATABASE     : D A T A B A S E;
+KW_FILES        : F I L E S;

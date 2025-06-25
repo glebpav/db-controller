@@ -19,35 +19,6 @@ tasks.jar {
     }
 }
 
-configurations {
-    maybeCreate("integrationTestAnnotationProcessor")
-}
-
-dependencies {
-    implementation(libs.lombok)
-    annotationProcessor(libs.lombok)
-    testAnnotationProcessor(libs.lombok)
-    "integrationTestAnnotationProcessor"(libs.lombok)
-
-    implementation(libs.dagger)
-    annotationProcessor(libs.dagger.compiler)
-    testAnnotationProcessor(libs.dagger.compiler)
-    "integrationTestAnnotationProcessor"(libs.dagger.compiler)
-
-    implementation(libs.jetbrains.annotations)
-
-    implementation(libs.jansi)
-
-    antlr(libs.antlr)
-
-    testImplementation(libs.junit)
-
-    testImplementation(libs.mockito.core)
-    testImplementation(libs.mockito.junit)
-
-    testImplementation(libs.assertJ.core)
-}
-
 // ===========================
 //     ANTLR
 // ===========================
@@ -56,26 +27,15 @@ sourceSets["main"].java.srcDir(file(generatedSourcesPath))
 idea.module.generatedSourceDirs.add(file(generatedSourcesPath))
 
 tasks.generateGrammarSource {
-    arguments.addAll(listOf("-package", "ru.mephi.sql.parser"))
-
-    val antlrOutput = layout.buildDirectory.dir("generated-src/antlr/main")
-
-    doLast {
-        val destinationDir = file("$generatedSourcesPath/ru/mephi/sql/parser")
-        println("Copying generated grammar lexer/parser files to main directory.")
-        println("To: $destinationDir")
-
-        copy {
-            from(antlrOutput.get().asFile)
-            into(destinationDir)
-        }
-
-        antlrOutput.get().asFile.parentFile.deleteRecursively()
-    }
-
-    outputs.dir(generatedSourcesPath)
+    maxHeapSize = "64m"
+    arguments = arguments + listOf(
+        "-visitor",
+        "-listener",
+        "-package", "ru.mephi.sql.parser",
+        "-Xexact-output-dir"
+    )
+    outputDirectory = file("$generatedSourcesPath/ru/mephi/sql/parser")
 }
-
 tasks.clean {
     doLast {
         file(generatedSourcesPath).deleteRecursively()
@@ -85,38 +45,93 @@ tasks.clean {
 tasks.compileJava {
     dependsOn(tasks.generateGrammarSource)
 }
-
 // ===========================
 //     Testing
 // ===========================
-val integrationTestSourceSet = sourceSets.create("integrationTest") {
-    java.srcDir("src/integrationTest/java")
-    resources.srcDir("src/integrationTest/resources")
-    compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
-    runtimeClasspath += output + compileClasspath + sourceSets["test"].runtimeClasspath
-}
-
-fun configureTestTask(task: Test) {
-    task.useJUnit()
-    task.filter {
-        includeTestsMatching("*Test")
-    }
-    task.testLogging {
-        events("passed", "skipped", "failed")
+sourceSets {
+    create("integrationTest") {
+        java.srcDir("src/integrationTest/java")
+        resources.srcDir("src/integrationTest/resources")
+        compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
+        runtimeClasspath += output + compileClasspath + sourceSets["test"].runtimeClasspath
     }
 }
 
-tasks.create("integrationTest", Test::class.java) {
+listOf(
+    "AnnotationProcessor",
+    "Implementation",
+    "RuntimeOnly",
+    "CompileOnly"
+).forEach { suffix ->
+    configurations.named("integrationTest$suffix") {
+        extendsFrom(configurations.getByName("test$suffix"))
+    }
+}
+
+fun configureTestTask(task: Test) = task.apply {
+    useJUnitPlatform()
+
+    filter.includeTestsMatching("*Test")
+    testLogging.events("passed", "skipped", "failed")
+
+    outputs.upToDateWhen { false }
+
+    doFirst {
+        val agentJar = configurations.testRuntimeClasspath.get()
+            .files
+            .firstOrNull { it.name.contains("byte-buddy-agent") }
+        if (agentJar != null) {
+            jvmArgs("-javaagent:${agentJar.absolutePath}")
+        } else {
+            logger.warn("Byte Buddy agent not found on testRuntimeClasspath.")
+        }
+    }
+}
+
+tasks.register<Test>("integrationTest") {
     description = "Runs the integration tests"
     group = "verification"
     testClassesDirs = sourceSets["integrationTest"].output.classesDirs
     classpath = sourceSets["integrationTest"].runtimeClasspath
-    outputs.upToDateWhen { false }
-    mustRunAfter("test")
 
     configureTestTask(this)
 }
 
 tasks.test {
     configureTestTask(this)
+}
+
+// ===========================
+//     Dependencies
+// ===========================
+dependencies {
+    // Lombok
+    implementation(libs.lombok)
+    annotationProcessor(libs.lombok)
+    testAnnotationProcessor(libs.lombok)
+
+    // ANTLR
+    antlr(libs.antlr)
+    implementation(libs.antlr.runtime)
+
+    // Dagger
+    implementation(libs.dagger)
+    annotationProcessor(libs.dagger.compiler)
+    testAnnotationProcessor(libs.dagger.compiler)
+
+    // Misc
+    implementation(libs.jetbrains.annotations)
+    implementation(libs.jansi)
+
+    // JUnit
+    testImplementation(platform(libs.junit.bom))
+    testImplementation(libs.junit.jupiter.api)
+    testRuntimeOnly(libs.junit.jupiter.engine)
+    testRuntimeOnly(libs.junit.platform.launcher)
+    implementation(libs.apiguardian)
+
+    // Mockito
+    testImplementation(libs.mockito.core)
+    testImplementation(libs.mockito.junit)
+    testImplementation(libs.assertJ.core)
 }

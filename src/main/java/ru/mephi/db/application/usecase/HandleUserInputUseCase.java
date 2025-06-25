@@ -16,16 +16,20 @@ public class HandleUserInputUseCase {
     private final CommandDispatcher commandDispatcher;
 
     public void execute() throws DatabaseException {
-        // TODO: add level for input prompt
-        outputBoundary.info("> ");
-        String userInput = inputBoundary.next().trim();
+        //noinspection InfiniteLoopStatement
+        while (true) {
+            // TODO: add level for input prompt
+            outputBoundary.info("> ");
+            String userInput = inputBoundary.next().trim();
 
-        try {
-            commandDispatcher.handle(userInput);
-        } catch (DatabaseQuitException e) {
-            throw e;
-        } catch (DatabaseException e) {
-            outputBoundary.error(e.getMessage(), e);
+            System.out.println("UserInput: " + userInput);
+            try {
+                commandDispatcher.handle(userInput);
+            } catch (DatabaseQuitException e) {
+                throw e;
+            } catch (DatabaseException e) {
+                outputBoundary.error(e.getMessage(), e);
+            }
         }
     }
 }

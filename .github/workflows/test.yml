@@ -16,7 +16,18 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
-      - name: Run unit and integration tests
+      - name: Run unit tests
         run: |
           chmod +x gradlew
-          ./gradlew test integrationTest
+          ./gradlew test || echo "UNIT_TESTS_FAILED=true" >> $GITHUB_ENV
+
+      - name: Run integration tests
+        run: |
+          chmod +x gradlew
+          ./gradlew integrationTest || echo "INTEGRATION_TESTS_FAILED=true" >> $GITHUB_ENV
+
+      - name: Fail if any tests failed
+        if: env.UNIT_TESTS_FAILED == 'true' || env.INTEGRATION_TESTS_FAILED == 'true'
+        run: |
+          echo "One or more test suites failed."
+          exit 1

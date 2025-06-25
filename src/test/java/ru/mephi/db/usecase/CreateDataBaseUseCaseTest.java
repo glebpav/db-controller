@@ -1,9 +1,9 @@
 package ru.mephi.db.usecase;
 
-import org.junit.Assume;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.condition.DisabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import ru.mephi.db.exception.DatabaseCreateException;
 import ru.mephi.db.application.usecase.CreateDatabaseUseCase;
 import ru.mephi.db.infrastructure.Constants;
@@ -14,17 +14,18 @@ import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class CreateDataBaseUseCaseTest {
 
-    @Rule
-    public TemporaryFolder tempFolder = new TemporaryFolder();
+    @TempDir
+    Path tempDir;
 
     @Test
     public void shouldCreateDatabaseSuccessfully() throws Exception {
         // Arrange
-        Path testPath = tempFolder.newFolder("test_db").toPath();
+        Path testPath = tempDir.resolve("test_db");
+        Files.createDirectory(testPath);
         CreateDatabaseUseCase useCase = new CreateDatabaseUseCase(new CliOutputBoundaryImpl());
 
         // Act
@@ -39,23 +40,22 @@ public class CreateDataBaseUseCaseTest {
         );
     }
 
-    @Test(expected = DatabaseCreateException.class)
-    public void shouldThrowExceptionWhenDirectoryCreationFails() throws Exception {
-        // Skip test on Windows
-        Assume.assumeFalse("Test skipped on Windows", System.getProperty("os.name").toLowerCase().contains("win"));
-
+    @Test
+    @DisabledOnOs(OS.WINDOWS)
+    public void shouldThrowExceptionWhenDirectoryCreationFails() {
         // Arrange
         Path invalidPath = Path.of("/invalid/path");
         CreateDatabaseUseCase useCase = new CreateDatabaseUseCase(new CliOutputBoundaryImpl());
 
         // Act & Assert
-        useCase.execute(invalidPath);
+        assertThrows(DatabaseCreateException.class, () -> useCase.execute(invalidPath));
     }
 
     @Test
     public void shouldWriteCorrectFileContent() throws Exception {
         // Arrange
-        Path testPath = tempFolder.newFolder("content_test").toPath();
+        Path testPath = tempDir.resolve("content_test");
+        Files.createDirectory(testPath);
         CreateDatabaseUseCase useCase = new CreateDatabaseUseCase(new CliOutputBoundaryImpl());
 
         // Act
@@ -75,15 +75,18 @@ public class CreateDataBaseUseCaseTest {
         // Arrange
         ByteArrayOutputStream outContent = new ByteArrayOutputStream();
         System.setOut(new PrintStream(outContent));
-        Path testPath = tempFolder.newFolder("test_db").toPath();
+        Path testPath = tempDir.resolve("test_db");
+        Files.createDirectory(testPath);
         CreateDatabaseUseCase useCase = new CreateDatabaseUseCase(new CliOutputBoundaryImpl());
 
-        // Act
-        useCase.execute(testPath);
+        try {
+            // Act
+            useCase.execute(testPath);
 
-        // Assert
-        assertTrue(outContent.toString().contains("Database created successfully"));
-        System.setOut(System.out); // Вернуть оригинальный System.out
+            // Assert
+            assertTrue(outContent.toString().contains("Database created successfully"));
+        } finally {
+            System.setOut(System.out);
+        }
     }
-
 }
