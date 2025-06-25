@@ -19,10 +19,15 @@ jobs:
       - name: Run unit tests
         run: |
           chmod +x gradlew
-          ./gradlew test
-        continue-on-error: true
+          ./gradlew test || echo "UNIT_TESTS_FAILED=true" >> $GITHUB_ENV
 
       - name: Run integration tests
         run: |
           chmod +x gradlew
-          ./gradlew integrationTest
+          ./gradlew integrationTest || echo "INTEGRATION_TESTS_FAILED=true" >> $GITHUB_ENV
+
+      - name: Fail if any tests failed
+        if: env.UNIT_TESTS_FAILED == 'true' || env.INTEGRATION_TESTS_FAILED == 'true'
+        run: |
+          echo "One or more test suites failed."
+          exit 1
