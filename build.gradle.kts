@@ -31,6 +31,10 @@ dependencies {
     testAnnotationProcessor(libs.lombok)
     "integrationTestAnnotationProcessor"(libs.lombok)
 
+    antlr("org.antlr:antlr4:4.13.2")
+    implementation("org.antlr:antlr4-runtime:4.13.2")
+
+
     implementation(libs.dagger)
     annotationProcessor(libs.dagger.compiler)
     testAnnotationProcessor(libs.dagger.compiler)
@@ -43,9 +47,12 @@ dependencies {
     antlr(libs.antlr)
 
     testImplementation(libs.junit)
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.2")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.9.2")
 
     testImplementation(libs.mockito.core)
     testImplementation(libs.mockito.junit)
+    testImplementation("org.mockito:mockito-junit-jupiter:4.11.0")
 
     testImplementation(libs.assertJ.core)
 }
@@ -58,26 +65,15 @@ sourceSets["main"].java.srcDir(file(generatedSourcesPath))
 idea.module.generatedSourceDirs.add(file(generatedSourcesPath))
 
 tasks.generateGrammarSource {
-    arguments.addAll(listOf("-package", "ru.mephi.sql.parser"))
-
-    val antlrOutput = layout.buildDirectory.dir("generated-src/antlr/main")
-
-    doLast {
-        val destinationDir = file("$generatedSourcesPath/ru/mephi/sql/parser")
-        println("Copying generated grammar lexer/parser files to main directory.")
-        println("To: $destinationDir")
-
-        copy {
-            from(antlrOutput.get().asFile)
-            into(destinationDir)
-        }
-
-        antlrOutput.get().asFile.parentFile.deleteRecursively()
-    }
-
-    outputs.dir(generatedSourcesPath)
+    maxHeapSize = "64m"
+    arguments = arguments + listOf(
+        "-visitor",
+        "-listener",
+        "-package", "ru.mephi.sql.parser",
+        "-Xexact-output-dir"
+    )
+    outputDirectory = file("$generatedSourcesPath/ru/mephi/sql/parser")
 }
-
 tasks.clean {
     doLast {
         file(generatedSourcesPath).deleteRecursively()
@@ -87,7 +83,6 @@ tasks.clean {
 tasks.compileJava {
     dependsOn(tasks.generateGrammarSource)
 }
-
 // ===========================
 //     Testing
 // ===========================
@@ -99,7 +94,7 @@ val integrationTestSourceSet = sourceSets.create("integrationTest") {
 }
 
 fun configureTestTask(task: Test) {
-    task.useJUnit()
+    task.useJUnitPlatform()
     task.filter {
         includeTestsMatching("*Test")
     }
@@ -122,3 +117,4 @@ tasks.create("integrationTest", Test::class.java) {
 tasks.test {
     configureTestTask(this)
 }
+

@@ -1,6 +1,7 @@
 package ru.mephi.db.di;
 
 import dagger.Component;
+import ru.mephi.db.application.core.ConnectionConfig;
 import ru.mephi.db.application.usecase.ExitDatabaseUseCase;
 import ru.mephi.db.application.usecase.HandleUserInputUseCase;
 import ru.mephi.db.application.usecase.InitializeDatabaseUseCase;
@@ -19,7 +20,10 @@ import javax.inject.Singleton;
         DBModule.class,
 })
 public interface MainComponent {
+
     InitializeDatabaseUseCase getInitializeDatabaseUseCase();
+
+    ConnectionConfig getConnectionConfig();
 
     HandleUserInputUseCase getHandleUserInputUseCase();
 

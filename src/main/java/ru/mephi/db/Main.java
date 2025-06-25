@@ -31,6 +31,8 @@ public class Main {
             System.out.println("\n" + e.getMessage());
         } catch (DatabaseException e) { // TODO: Handle properly
             e.printStackTrace(); // TODO: Logger
+        } catch(Throwable th) {
+            th.printStackTrace();
         } finally {
             exitDatabase();
         }
@@ -42,6 +44,7 @@ public class Main {
 
         File db = new File(args[0]);
         Path dbPath = db.toPath();
+        component.getConnectionConfig().setDbPath(args[0]);
         return component.getInitializeDatabaseUseCase().execute(dbPath);
     }
 

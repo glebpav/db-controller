@@ -1,19 +1,26 @@
 package ru.mephi.db.domain.entity;
 
-import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
+import lombok.Value;
 import ru.mephi.db.domain.valueobject.QueryType;
 
+import java.util.List;
 import java.util.Map;
 
-@Data
+@Value
 @Builder
-@AllArgsConstructor
 public class Query {
-    private final QueryType type;
-    private final String table;
-    private final Map<String, Object> data;
-    // + условия WHERE, JOIN и т. д.
-}
 
+
+    QueryType type;
+    List<String> schema;
+    String table;
+    String whereClause;
+    List<Integer> columnIndices;
+    List<Object> values;
+    Integer recordIndex;
+    String databasePath;
+    String databaseName;
+    String transactionName;
+
+}
