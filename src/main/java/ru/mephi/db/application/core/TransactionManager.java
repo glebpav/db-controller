@@ -215,4 +215,75 @@ public class TransactionManager {
             transactionLogger.logDeleteRecord(currentTransactionId, tableName, recordIndex);
         }
     }
+
+    /**
+     * Восстанавливает состояние базы данных из WAL
+     * Применяет все операции из завершенных транзакций
+     * Откатывает незавершенные транзакции
+     */
+    public void recoverFromWAL() throws IOException {
+        System.out.println("Starting database recovery from WAL...");
+        
+        try {
+            // Получаем список незавершенных транзакций
+            List<String> unfinishedTransactions = transactionLogger.getUnfinishedTransactions();
+            
+            if (unfinishedTransactions.isEmpty()) {
+                System.out.println("No unfinished transactions found. Recovery not needed.");
+                return;
+            }
+            
+            System.out.println("Found " + unfinishedTransactions.size() + " unfinished transactions: " + unfinishedTransactions);
+            
+            // Откатываем все незавершенные транзакции
+            for (String transactionId : unfinishedTransactions) {
+                System.out.println("Rolling back transaction: " + transactionId);
+                rollbackUnfinishedTransaction(transactionId);
+            }
+            
+            System.out.println("Recovery completed successfully.");
+            
+        } catch (Exception e) {
+            e.printStackTrace(); // Для диагностики
+            System.err.println("Recovery failed: " + e.getMessage());
+            throw new IOException("Failed to recover from WAL: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Откатывает конкретную незавершенную транзакцию
+     */
+    private void rollbackUnfinishedTransaction(String transactionId) throws IOException {
+        // Удаляем все временные файлы, связанные с этой транзакцией
+        Path masterPath = connectionconfig.getMasterPath().toAbsolutePath();
+        List<String> allTableNames = dataRepository.getAllTableNames(masterPath.toString());
+        
+        for (String tableName : allTableNames) {
+            if (tableName.contains("_tmp")) {
+                Path tempPath = connectionconfig.getTablePath(tableName).toAbsolutePath();
+                if (Files.exists(tempPath)) {
+                    System.out.println("Removing temporary table: " + tableName);
+                    dataRepository.deleteTableFile(tempPath.toString());
+                }
+            }
+        }
+        
+        // Удаляем ссылки на временные таблицы из Master.txt
+        removeAllTempTableReferences(masterPath.toString());
+    }
+    
+    /**
+     * Удаляет все ссылки на временные таблицы из Master.txt
+     */
+    private void removeAllTempTableReferences(String masterPath) throws IOException {
+        List<String> allTableNames = dataRepository.getAllTableNames(masterPath);
+        List<String> tempTableNames = allTableNames.stream()
+                .filter(name -> name.contains("_tmp"))
+                .toList();
+        
+        for (String tempTableName : tempTableNames) {
+            Path tempPath = connectionconfig.getTablePath(tempTableName);
+            dataRepository.removeTableReference(masterPath, tempPath.toString());
+        }
+    }
 } 

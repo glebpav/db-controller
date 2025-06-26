@@ -158,6 +158,22 @@ public class TransactionLoggerImpl implements TransactionLogger {
     
     @Override
     public List<String> getUnfinishedTransactions() throws IOException {
+        // Очищаем текущее состояние
+        activeTransactions.clear();
+        
+        // Перечитываем WAL файл для восстановления состояния
+        if (Files.exists(logFilePath)) {
+            try (BufferedReader reader = Files.newBufferedReader(logFilePath, StandardCharsets.UTF_8)) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    TransactionLogEntry entry = parseLogEntry(line);
+                    if (entry != null) {
+                        processLogEntry(entry);
+                    }
+                }
+            }
+        }
+        
         return new ArrayList<>(activeTransactions.keySet());
     }
     
@@ -200,9 +216,20 @@ public class TransactionLoggerImpl implements TransactionLogger {
             }
             
             LogOperationType operationType = LogOperationType.valueOf(parts[0]);
-            String transactionName = parts.length > 1 ? parts[1] : null;
-            String tableName = parts.length > 2 ? parts[2] : null;
-            String data = parts.length > 3 ? parts[3] : null;
+            String transactionId = null;
+            String transactionName = null;
+            String tableName = null;
+            String data = null;
+
+            if (operationType == LogOperationType.BEGIN || operationType == LogOperationType.COMMIT || operationType == LogOperationType.ROLLBACK) {
+                transactionId = parts.length > 1 ? parts[1] : null;
+                transactionName = parts.length > 2 ? parts[2] : null;
+                data = transactionId; // transactionId is used as 'data' for BEGIN/COMMIT/ROLLBACK
+            } else {
+                transactionName = parts.length > 1 ? parts[1] : null;
+                tableName = parts.length > 2 ? parts[2] : null;
+                data = parts.length > 3 ? parts[3] : null;
+            }
             
             return TransactionLogEntry.builder()
                     .operationType(operationType)
@@ -220,11 +247,21 @@ public class TransactionLoggerImpl implements TransactionLogger {
     private void processLogEntry(TransactionLogEntry entry) {
         switch (entry.getOperationType()) {
             case BEGIN:
-                activeTransactions.put(entry.getData(), entry.getTransactionName());
+                System.out.println("DEBUG: BEGIN entry.getData()=" + entry.getData() + ", entry.getTransactionName()=" + entry.getTransactionName());
+                if (entry.getData() != null && entry.getTransactionName() != null) {
+                    activeTransactions.put(entry.getData(), entry.getTransactionName());
+                } else {
+                    System.out.println("DEBUG: Skipped BEGIN due to null values");
+                }
                 break;
             case COMMIT:
             case ROLLBACK:
-                activeTransactions.remove(entry.getData());
+                System.out.println("DEBUG: " + entry.getOperationType() + " entry.getData()=" + entry.getData());
+                if (entry.getData() != null) {
+                    activeTransactions.remove(entry.getData());
+                } else {
+                    System.out.println("DEBUG: Skipped " + entry.getOperationType() + " due to null data");
+                }
                 break;
             default:
                 break;

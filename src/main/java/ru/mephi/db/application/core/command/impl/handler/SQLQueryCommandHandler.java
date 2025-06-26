@@ -21,7 +21,9 @@ public class SQLQueryCommandHandler implements CommandHandler {
 
     @Override
     public boolean canHandle(String input) {
-        return true;
+        if (input == null || input.trim().isEmpty()) return false;
+        String trimmed = input.trim().toLowerCase();
+        return !(trimmed.equals("recover") || trimmed.equals("exit") || trimmed.equals("help"));
     }
 
     @Override
