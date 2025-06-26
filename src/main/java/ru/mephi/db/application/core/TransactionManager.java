@@ -5,26 +5,44 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.io.IOException;
 import java.util.List;
+import java.util.UUID;
 
 import ru.mephi.db.application.adapter.db.DataRepository;
+import ru.mephi.db.application.adapter.db.TransactionLogger;
+import ru.mephi.db.exception.LogUnableWriteTransactionException;
 
 public class TransactionManager {
     private boolean inTransaction = false;
+    private String currentTransactionId = null;
     private final ConnectionConfig connectionconfig;
     private final DataRepository dataRepository;
+    private final TransactionLogger transactionLogger;
     
 
-    public TransactionManager(ConnectionConfig connectionconfig, DataRepository dataRepository) {
+    public TransactionManager(ConnectionConfig connectionconfig, DataRepository dataRepository, TransactionLogger transactionLogger) {
         this.connectionconfig = connectionconfig;
         this.dataRepository = dataRepository;
+        this.transactionLogger = transactionLogger;
     }
 
     public boolean isInTransaction() {
         return inTransaction;
     }
 
-    public void begin() {
+    public String getCurrentTransactionId() {
+        return currentTransactionId;
+    }
+
+    public void begin() throws LogUnableWriteTransactionException {
+        if (inTransaction) {
+            throw new IllegalStateException("Transaction already in progress");
+        }
+        
+        currentTransactionId = UUID.randomUUID().toString();
         inTransaction = true;
+        
+        // Логируем начало транзакции
+        transactionLogger.logBeginTransaction(currentTransactionId, null);
     }
 
     public void commit() throws IOException {
@@ -32,8 +50,19 @@ public class TransactionManager {
             throw new IllegalStateException("No transaction to commit");
         }
         
-        processTemporaryTables(true); // true = commit mode
-        inTransaction = false;
+        try {
+            processTemporaryTables(true); // true = commit mode
+            
+            // Логируем коммит транзакции
+            transactionLogger.logCommitTransaction(currentTransactionId);
+            
+            inTransaction = false;
+            currentTransactionId = null;
+        } catch (LogUnableWriteTransactionException e) {
+            // Если не удалось записать в лог, откатываем транзакцию
+            rollback();
+            throw new IOException("Failed to commit transaction: " + e.getMessage(), e);
+        }
     }
 
     public void rollback() throws IOException {
@@ -41,8 +70,20 @@ public class TransactionManager {
             throw new IllegalStateException("No transaction to rollback");
         }
         
-        processTemporaryTables(false); // false = rollback mode
-        inTransaction = false;
+        try {
+            processTemporaryTables(false); // false = rollback mode
+            
+            // Логируем откат транзакции
+            transactionLogger.logRollbackTransaction(currentTransactionId);
+            
+            inTransaction = false;
+            currentTransactionId = null;
+        } catch (LogUnableWriteTransactionException e) {
+            // Даже если не удалось записать в лог, все равно откатываем транзакцию
+            inTransaction = false;
+            currentTransactionId = null;
+            throw new IOException("Failed to rollback transaction: " + e.getMessage(), e);
+        }
     }
 
     /**
@@ -136,6 +177,42 @@ public class TransactionManager {
             dataRepository.deleteTableFile(tempPath.toString());
         } else {
             dataRepository.removeTableReference(masterPath.toString(), tempPath.toString());
+        }
+    }
+
+    /**
+     * Логирует создание таблицы
+     */
+    public void logCreateTable(String tableName, List<String> schema) throws LogUnableWriteTransactionException {
+        if (inTransaction && currentTransactionId != null) {
+            transactionLogger.logCreateTable(currentTransactionId, tableName, schema);
+        }
+    }
+
+    /**
+     * Логирует удаление таблицы
+     */
+    public void logDropTable(String tableName) throws LogUnableWriteTransactionException {
+        if (inTransaction && currentTransactionId != null) {
+            transactionLogger.logDropTable(currentTransactionId, tableName);
+        }
+    }
+
+    /**
+     * Логирует вставку записи
+     */
+    public void logInsertRecord(String tableName, List<Object> values) throws LogUnableWriteTransactionException {
+        if (inTransaction && currentTransactionId != null) {
+            transactionLogger.logInsertRecord(currentTransactionId, tableName, values);
+        }
+    }
+
+    /**
+     * Логирует удаление записи
+     */
+    public void logDeleteRecord(String tableName, int recordIndex) throws LogUnableWriteTransactionException {
+        if (inTransaction && currentTransactionId != null) {
+            transactionLogger.logDeleteRecord(currentTransactionId, tableName, recordIndex);
         }
     }
 } 

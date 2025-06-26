@@ -7,6 +7,7 @@ import ru.mephi.db.application.core.sql.QueryHandler;
 import ru.mephi.db.domain.entity.Query;
 import ru.mephi.db.domain.entity.QueryResult;
 import ru.mephi.db.domain.valueobject.QueryType;
+import ru.mephi.db.exception.LogUnableWriteTransactionException;
 
 import java.io.IOException;
 import java.util.List;
@@ -36,6 +37,12 @@ public class CreateTableHandler implements QueryHandler {
                     .collect(Collectors.toList());
 
             dataRepository.createTableFile(tableFilePath, tableName, storageSchema);
+
+            try {
+                transactionManager.logCreateTable(tableName, schema);
+            } catch (LogUnableWriteTransactionException e) {
+                System.err.println("Warning: Failed to log table creation: " + e.getMessage());
+            }
 
             return QueryResult.builder()
                     .success(true)

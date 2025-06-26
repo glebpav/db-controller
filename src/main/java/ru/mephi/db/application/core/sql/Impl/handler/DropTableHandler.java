@@ -7,6 +7,7 @@ import ru.mephi.db.application.core.sql.QueryHandler;
 import ru.mephi.db.domain.entity.Query;
 import ru.mephi.db.domain.entity.QueryResult;
 import ru.mephi.db.domain.valueobject.QueryType;
+import ru.mephi.db.exception.LogUnableWriteTransactionException;
 
 @RequiredArgsConstructor
 public class DropTableHandler implements QueryHandler {
@@ -34,6 +35,12 @@ public class DropTableHandler implements QueryHandler {
             String tableFilePath = transactionManager.getActualTablePath(tableName).toString();
     
             dataRepository.deleteTableFile(tableFilePath);
+
+            try {
+                transactionManager.logDropTable(tableName);
+            } catch (LogUnableWriteTransactionException e) {
+                System.err.println("Warning: Failed to log drop table operation: " + e.getMessage());
+            }
 
             return new QueryResult(
                     true,

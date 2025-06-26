@@ -7,6 +7,7 @@ import ru.mephi.db.domain.entity.QueryResult;
 import ru.mephi.db.domain.valueobject.QueryType;
 import ru.mephi.db.application.adapter.db.DataRepository;
 import ru.mephi.db.application.core.TransactionManager;
+import ru.mephi.db.exception.LogUnableWriteTransactionException;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,19 +35,26 @@ public class DeleteQueryHandler implements QueryHandler {
                 List<Integer> matchingIndices = findMatchingIndices(query);
                 deletedCount = matchingIndices.size();
                 for (int i = matchingIndices.size() - 1; i >= 0; i--) {
-                    dataRepository.deleteRecord(tableFilePath, matchingIndices.get(i));
+                    int recordIndex = matchingIndices.get(i);
+                    dataRepository.deleteRecord(tableFilePath, recordIndex);
+                    
+                    try {
+                        transactionManager.logDeleteRecord(tableName, recordIndex);
+                    } catch (LogUnableWriteTransactionException e) {
+                        System.err.println("Warning: Failed to log delete operation: " + e.getMessage());
+                    }
                 }
             } else if (query.getRecordIndex() != null) {
                 deletedCount = 1;
-                dataRepository.deleteRecord(tableFilePath, query.getRecordIndex());
-            } //else {
-                // Для очистки таблицы будем удалять записи по одной
-              //  List<Integer> allIndices = dataRepository.getAllRecordIndices(tableFilePath);
-              //  for (int index : allIndices) {
-              //      dataRepository.deleteRecord(tableFilePath, index);
-
-              //  }
-            //}
+                int recordIndex = query.getRecordIndex();
+                dataRepository.deleteRecord(tableFilePath, recordIndex);
+                
+                try {
+                    transactionManager.logDeleteRecord(tableName, recordIndex);
+                } catch (LogUnableWriteTransactionException e) {
+                    System.err.println("Warning: Failed to log delete operation: " + e.getMessage());
+                }
+            }
 
             return QueryResult.builder()
                     .success(true)

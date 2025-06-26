@@ -6,6 +6,7 @@ import ru.mephi.db.application.core.sql.QueryHandler;
 import ru.mephi.db.domain.entity.Query;
 import ru.mephi.db.domain.entity.QueryResult;
 import ru.mephi.db.domain.valueobject.QueryType;
+import ru.mephi.db.exception.LogUnableWriteTransactionException;
 import java.util.List;
 import java.util.Map;
 
@@ -29,6 +30,12 @@ public class InsertQueryHandler implements QueryHandler {
 
             List<Object> values = query.getValues();
             dataRepository.addRecord(tableFilePath, values);
+
+            try {
+                transactionManager.logInsertRecord(tableName, values);
+            } catch (LogUnableWriteTransactionException e) {
+                System.err.println("Warning: Failed to log insert operation: " + e.getMessage());
+            }
 
             return QueryResult.builder()
                     .success(true)

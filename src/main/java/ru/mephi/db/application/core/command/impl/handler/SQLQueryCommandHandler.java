@@ -9,6 +9,7 @@ import ru.mephi.db.exception.DatabaseException;
 import ru.mephi.db.application.core.sql.SQLParser;
 import ru.mephi.db.domain.entity.Query;
 import ru.mephi.db.domain.entity.QueryResult;
+import ru.mephi.db.infrastructure.ResultFormatter;
 
 import javax.inject.Inject;
 
@@ -26,11 +27,7 @@ public class SQLQueryCommandHandler implements CommandHandler {
     @Override
     public void execute(String commandText) throws DatabaseException {
         Query query = sqlParser.parse(commandText);
-        // TODO: coming soon
         QueryResult result = queryExecutor.execute(query);
-        /* if (result.requiresStorage()) {
-            fileStorageService.save(result);
-        } */
-        System.out.println(result);
+        System.out.print(ResultFormatter.format(result));
     }
 }

@@ -4,6 +4,7 @@ import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
 import ru.mephi.db.application.adapter.db.DataRepository;
+import ru.mephi.db.application.adapter.db.TransactionLogger;
 import ru.mephi.db.application.core.ConnectionConfig;
 import ru.mephi.db.application.core.TransactionManager;
 import ru.mephi.db.application.core.sql.Impl.QueryExecutorImpl;
@@ -11,7 +12,7 @@ import ru.mephi.db.application.core.sql.Impl.SQLParserImpl;
 import ru.mephi.db.application.core.sql.Impl.handler.*;
 import ru.mephi.db.application.core.sql.QueryExecutor;
 import ru.mephi.db.application.core.sql.SQLParser;
-
+import ru.mephi.db.infrastructure.db.TransactionLoggerImpl;
 
 import javax.inject.Singleton;
 import java.util.List;
@@ -21,6 +22,16 @@ public abstract class SQLModule {
 
     @Binds
     public abstract SQLParser bindSQLParser(SQLParserImpl implementation);
+
+    @Provides
+    @Singleton
+    public static TransactionLogger provideTransactionLogger(ConnectionConfig connectionConfig) {
+        try {
+            return new TransactionLoggerImpl(connectionConfig.getDbPath());
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create TransactionLogger: " + e.getMessage(), e);
+        }
+    }
 
     @Provides
     @Singleton
@@ -41,8 +52,8 @@ public abstract class SQLModule {
 
     @Provides
     @Singleton
-    public static TransactionManager provideTransactionManager(ConnectionConfig connectionConfig, DataRepository dataRepository) {
-        return new TransactionManager(connectionConfig, dataRepository);
+    public static TransactionManager provideTransactionManager(ConnectionConfig connectionConfig, DataRepository dataRepository, TransactionLogger transactionLogger) {
+        return new TransactionManager(connectionConfig, dataRepository, transactionLogger);
     }
 
 }
