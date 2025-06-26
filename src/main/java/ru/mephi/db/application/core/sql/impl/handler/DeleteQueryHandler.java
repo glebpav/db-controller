@@ -6,7 +6,8 @@ import ru.mephi.db.domain.entity.Query;
 import ru.mephi.db.domain.entity.QueryResult;
 import ru.mephi.db.domain.valueobject.QueryType;
 import ru.mephi.db.application.adapter.db.DataRepository;
-import ru.mephi.db.application.core.ConnectionConfig;
+import ru.mephi.db.application.core.TransactionManager;
+import ru.mephi.db.exception.LogUnableWriteTransactionException;
 
 import java.io.IOException;
 import java.util.List;
@@ -15,7 +16,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class DeleteQueryHandler implements QueryHandler {
     private final DataRepository dataRepository;
-    private final ConnectionConfig connectionConfig;
+    private final TransactionManager transactionManager;
 
     @Override
     public boolean canHandle(QueryType type) {
@@ -26,27 +27,34 @@ public class DeleteQueryHandler implements QueryHandler {
     public QueryResult handle(Query query) {
         try {
             String tableName = query.getTable();
-            String dbFilePath = connectionConfig.getDbPath();
-            String tableFilePath = dbFilePath + "\\" + tableName + ".txt";
+            String tableFilePath = transactionManager.getActualTablePath(tableName).toString();
+    
             int deletedCount = 0;
 
             if (query.getWhereClause() != null) {
                 List<Integer> matchingIndices = findMatchingIndices(query);
                 deletedCount = matchingIndices.size();
                 for (int i = matchingIndices.size() - 1; i >= 0; i--) {
-                    dataRepository.deleteRecord(tableFilePath, matchingIndices.get(i));
+                    int recordIndex = matchingIndices.get(i);
+                    dataRepository.deleteRecord(tableFilePath, recordIndex);
+                    
+                    try {
+                        transactionManager.logDeleteRecord(tableName, recordIndex);
+                    } catch (LogUnableWriteTransactionException e) {
+                        System.err.println("Warning: Failed to log delete operation: " + e.getMessage());
+                    }
                 }
             } else if (query.getRecordIndex() != null) {
                 deletedCount = 1;
-                dataRepository.deleteRecord(tableFilePath, query.getRecordIndex());
-            } //else {
-                // Для очистки таблицы будем удалять записи по одной
-              //  List<Integer> allIndices = dataRepository.getAllRecordIndices(tableFilePath);
-              //  for (int index : allIndices) {
-              //      dataRepository.deleteRecord(tableFilePath, index);
-
-              //  }
-            //}
+                int recordIndex = query.getRecordIndex();
+                dataRepository.deleteRecord(tableFilePath, recordIndex);
+                
+                try {
+                    transactionManager.logDeleteRecord(tableName, recordIndex);
+                } catch (LogUnableWriteTransactionException e) {
+                    System.err.println("Warning: Failed to log delete operation: " + e.getMessage());
+                }
+            }
 
             return QueryResult.builder()
                     .success(true)
@@ -65,8 +73,8 @@ public class DeleteQueryHandler implements QueryHandler {
     private List<Integer> findMatchingIndices(Query query) throws IOException {
         String tableName = query.getTable();
         String whereClause = query.getWhereClause();
-        String dbFilePath = connectionConfig.getDbPath();
-        String tableFilePath = dbFilePath + "\\" + tableName + ".txt";
+
+        String tableFilePath = transactionManager.getActualTablePath(tableName).toString();
 
         if (whereClause == null || whereClause.trim().isEmpty()) {
             return dataRepository.getAllRecordIndices(tableFilePath);

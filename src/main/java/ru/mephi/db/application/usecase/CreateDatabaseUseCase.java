@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.time.Instant;
 import java.util.Map;
 import java.util.Properties;
 
@@ -38,6 +39,16 @@ public class CreateDatabaseUseCase {
                     writer.write(entry.getKey() + "=" + entry.getValue());
                     writer.newLine();
                 }
+            }
+
+            Path dbLogFile = dbPath.resolve(Constants.DB_LOG_FILE);
+            try (BufferedWriter logWriter = Files.newBufferedWriter(
+                    dbLogFile, StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.APPEND)) {
+                String logEntry = "Database created at " + Instant.now() + " in path: " + dbPath;
+                logWriter.write(logEntry);
+                logWriter.newLine();
             }
 
             outputBoundary.success("Database created successfully at: " + dbPath + "\n");

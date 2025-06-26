@@ -1,5 +1,6 @@
 package ru.mephi.db;
 
+import ru.mephi.db.di.AppModule;
 import ru.mephi.db.di.DaggerMainComponent;
 import ru.mephi.db.di.MainComponent;
 import ru.mephi.db.exception.DatabaseException;
@@ -12,13 +13,20 @@ import java.nio.channels.FileLock;
 import java.nio.file.Path;
 
 public class Main {
-
-    private static final MainComponent component = DaggerMainComponent.create();
+    private static MainComponent component;
 
     private static FileLock lock;
 
     public static void main(String[] args) {
         try {
+            if (args.length != 1) {
+                throw new DatabaseInitException("Received invalid arguments");
+            }
+
+            component = DaggerMainComponent.builder()
+                    .appModule(new AppModule(Path.of(args[0])))
+                    .build();
+
             lock = initializeDatabase(args);
 
             HandleUserInputUseCase handler = component.getHandleUserInputUseCase();
@@ -36,12 +44,8 @@ public class Main {
     }
 
     private static FileLock initializeDatabase(String[] args) throws DatabaseException {
-        if (args.length != 1)
-            throw new DatabaseInitException("Received invalid arguments");
-
         File db = new File(args[0]);
         Path dbPath = db.toPath();
-        component.getConnectionConfig().setDbPath(args[0]);
         return component.getInitializeDatabaseUseCase().execute(dbPath);
     }
 

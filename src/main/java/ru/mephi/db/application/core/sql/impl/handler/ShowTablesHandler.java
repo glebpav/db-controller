@@ -14,7 +14,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ShowTablesHandler implements QueryHandler {
     private final DataRepository dataRepository;
-    private final ConnectionConfig connectionconfig ;
+    private final ConnectionConfig connectionconfig;
 
     @Override
     public boolean canHandle(QueryType type) {
@@ -24,9 +24,8 @@ public class ShowTablesHandler implements QueryHandler {
     @Override
     public QueryResult handle(Query query) {
         try {
-            String dbFilePath = connectionconfig.getDbPath();
-            String dataBaseFilePath = dbFilePath + "\\" + "Master.txt";
-            List<String> tablesName = dataRepository.getAllTableNames(dataBaseFilePath);
+            String masterDbFilePath = connectionconfig.getMasterPath().toString();
+            List<String> tablesName = dataRepository.getAllTableNames(masterDbFilePath);
             return new QueryResult(
                     true,
                     List.of(Map.of("tables", tablesName)),

@@ -44,7 +44,7 @@ public class DataRepositoryImpl implements DataRepository {
      * @throws IOException если произошла ошибка ввода-вывода
      * @throws IllegalArgumentException если имя базы данных превышает 50 символов
      */
-    private void createDatabaseFile(String dbFilePath, String dbName) throws IOException {
+    public void createDatabaseFile(String dbFilePath, String dbName) throws IOException {
         //validateTxtExtension(dbFilePath);
 
         Path path = Paths.get(dbFilePath).getParent();
@@ -73,7 +73,7 @@ public class DataRepositoryImpl implements DataRepository {
      * @throws IOException если произошла ошибка ввода-вывода
      * @throws IllegalArgumentException если таблица уже существует в БД
      */
-    private void addTableReference(String dbFilePath, String tableFilePath) throws IOException {
+    public void addTableReference(String dbFilePath, String tableFilePath) throws IOException {
         //validateTxtExtension(dbFilePath);
         //validateTxtExtension(tableFilePath);
 
@@ -305,7 +305,6 @@ public class DataRepositoryImpl implements DataRepository {
 
         // Получаем путь к Master DB (в той же директории, где удаляемая таблица)
         String masterDbPath = path.resolve("Master.txt").toString();
-
         // Если Master DB существует - удаляем из нее ссылку на таблицу
         if (Files.exists(Paths.get(masterDbPath))) {
             removeTableReference(masterDbPath, tableFilePath);
@@ -389,7 +388,7 @@ public class DataRepositoryImpl implements DataRepository {
      * @throws IOException если произошла ошибка ввода-вывода
      * @throws IllegalArgumentException если файлы имеют неверное расширение
      */
-    private void removeTableReference(String dbFilePath, String tableFilePath) throws IOException {
+    public void removeTableReference(String dbFilePath, String tableFilePath) throws IOException {
         //validateTxtExtension(dbFilePath);
         //validateTxtExtension(tableFilePath);
 
@@ -1077,7 +1076,6 @@ public class DataRepositoryImpl implements DataRepository {
             // Получаем общее количество записей
             file.seek(50);
             int recordsInPage = file.readInt();
-            int totalRecords = file.readInt();
 
             // Читаем все записи на текущей странице
             for (int i = 0; i < recordsInPage; i++) {
@@ -1186,7 +1184,6 @@ public class DataRepositoryImpl implements DataRepository {
             // Получаем количество записей
             file.seek(50);
             int recordsInPage = file.readInt();
-            int totalRecords = file.readInt();
 
             // Читаем все записи на текущей странице
             for (int i = 0; i < recordsInPage; i++) {
@@ -1309,7 +1306,6 @@ public class DataRepositoryImpl implements DataRepository {
             // Получаем количество записей
             file.seek(50);
             int recordsInPage = file.readInt();
-            int totalRecords = file.readInt();
 
             // Читаем все записи на текущей странице
             for (int i = 0; i < recordsInPage; i++) {
@@ -1372,7 +1368,6 @@ public class DataRepositoryImpl implements DataRepository {
         //validateTxtExtension(tablePath);
 
         List<Integer> allIndices = new ArrayList<>();
-        int currentIndex = 0;
 
         try (RandomAccessFile file = new RandomAccessFile(tablePath, "r")) {
             // Получаем количество записей на текущей странице

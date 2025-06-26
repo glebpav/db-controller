@@ -6,7 +6,7 @@ import ru.mephi.db.domain.entity.Query;
 import ru.mephi.db.domain.entity.QueryResult;
 import ru.mephi.db.domain.valueobject.QueryType;
 import ru.mephi.db.application.adapter.db.DataRepository;
-import ru.mephi.db.application.core.ConnectionConfig;
+import ru.mephi.db.application.core.TransactionManager;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -17,7 +17,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class SelectQueryHandler implements QueryHandler {
     private final DataRepository dataRepository;
-    private final ConnectionConfig connectionconfig ;
+    private final TransactionManager transactionManager;
 
 
     @Override
@@ -29,8 +29,8 @@ public class SelectQueryHandler implements QueryHandler {
     public QueryResult handle(Query query) {
         try {
             String tableName = query.getTable();
-            String dbFilePath = connectionconfig.getDbPath();
-            String tableFilePath = dbFilePath + "\\" + tableName + ".txt";
+            String tableFilePath = transactionManager.getActualTablePath(tableName).toString();
+
             List<Map<String, Object>> resultData;
 
             if (query.getWhereClause() != null) {
@@ -58,8 +58,7 @@ public class SelectQueryHandler implements QueryHandler {
     private List<Integer> findMatchingIndices(Query query) throws IOException {
         String tableName = query.getTable();
         String whereClause = query.getWhereClause();
-        String dbFilePath = connectionconfig.getDbPath();
-        String tableFilePath = dbFilePath + "\\" + tableName + ".txt";
+        String tableFilePath = transactionManager.getActualTablePath(tableName).toString();
 
         if (whereClause == null || whereClause.trim().isEmpty()) {
             return dataRepository.getAllRecordIndices(tableFilePath);
@@ -131,10 +130,6 @@ public class SelectQueryHandler implements QueryHandler {
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("Column index must be a number: " + str);
         }
-    }
-
-    private boolean isNumeric(String str) {
-        return str.matches("-?\\d+");
     }
 
     private String extractOperator(String condition) {

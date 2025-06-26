@@ -1,14 +1,21 @@
 package ru.mephi.db.application.core.sql.impl.handler;
 
+import ru.mephi.db.application.core.ConnectionConfig;
 import ru.mephi.db.application.core.sql.QueryHandler;
 import ru.mephi.db.domain.entity.Query;
 import ru.mephi.db.domain.entity.QueryResult;
 import ru.mephi.db.domain.valueobject.QueryType;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
 public class ShowFilesHandler implements QueryHandler {
+    private final ConnectionConfig connectionconfig;
+
+    public ShowFilesHandler(ConnectionConfig connectionconfig) {
+        this.connectionconfig = connectionconfig;
+    }
     @Override
     public boolean canHandle(QueryType type) {
         return type == QueryType.SHOW_FILES;
@@ -21,11 +28,11 @@ public class ShowFilesHandler implements QueryHandler {
             String message = dbName != null ?
                     "Files for database '" + dbName + "'" : "All files";
 
-            List<Map<String, Object>> files = fetchFiles(dbName);
+            List<Map<String, String>> files = fetchFiles(dbName);
 
             return new QueryResult(
                     true,
-                    files,
+                    List.of(Map.of("files", files)),
                     "Found " + files.size() + " files: " + message
             );
         } catch (Exception e) {
@@ -37,18 +44,26 @@ public class ShowFilesHandler implements QueryHandler {
         }
     }
 
-    private List<Map<String, Object>> fetchFiles(String dbName) {
-        // Тут должна быть реализация !!!
-
-        if (dbName != null) {
-            return List.of(
-                    Map.of("name", dbName + "_backup.zip", "size", "2.5MB"),
-                    Map.of("name", dbName + "_data.json", "size", "1.8MB")
-            );
+    private List<Map<String, String>> fetchFiles(String dbName) throws IOException {
+        String dbDir = connectionconfig.getDbPath().toString();
+        try (java.util.stream.Stream<java.nio.file.Path> paths = java.nio.file.Files.list(java.nio.file.Paths.get(dbDir))) {
+            return paths
+                .filter(java.nio.file.Files::isRegularFile)
+                .map(path -> {
+                    try {
+                        long size = java.nio.file.Files.size(path);
+                        return java.util.Map.of(
+                            "name", path.getFileName().toString(),
+                            "size", String.valueOf(size)
+                        );
+                    } catch (IOException e) {
+                        return java.util.Map.of(
+                            "name", path.getFileName().toString(),
+                            "size", "error"
+                        );
+                    }
+                })
+                .collect(java.util.stream.Collectors.toList());
         }
-        return List.of(
-                Map.of("name", "global_config.xml", "size", "128KB"),
-                Map.of("name", "system_logs.log", "size", "4.2MB")
-        );
     }
 }

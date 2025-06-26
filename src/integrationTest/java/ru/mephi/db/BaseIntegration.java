@@ -1,10 +1,12 @@
 // BaseIntegrationTest.java
 package ru.mephi.db;
 
+import ru.mephi.db.di.AppModule;
 import ru.mephi.db.di.DaggerTestComponent;
 import ru.mephi.db.di.TestComponent;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import ru.mephi.db.infrastructure.Constants;
 
 import java.nio.channels.FileLock;
 import java.nio.file.Files;
@@ -19,9 +21,13 @@ public abstract class BaseIntegration {
     @BeforeEach
     public void setUp() throws Exception {
         tempDbPath = Files.createTempDirectory("test_db");
-        Files.createFile(tempDbPath.resolve("info"));
+        Files.createFile(tempDbPath.resolve(Constants.DB_INFO_FILE));
+        Files.createFile(tempDbPath.resolve(Constants.DB_LOG_FILE));
 
-        component = DaggerTestComponent.create();
+        component = DaggerTestComponent.builder()
+                .appModule(new AppModule(tempDbPath))
+                .build();
+
         lock = component.getInitializeDatabaseUseCase().execute(tempDbPath);
     }
 

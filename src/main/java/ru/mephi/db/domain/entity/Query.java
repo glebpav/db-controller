@@ -5,7 +5,6 @@ import lombok.Value;
 import ru.mephi.db.domain.valueobject.QueryType;
 
 import java.util.List;
-import java.util.Map;
 
 @Value
 @Builder

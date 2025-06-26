@@ -10,6 +10,7 @@ import ru.mephi.db.application.core.command.impl.*;
 import ru.mephi.db.application.core.command.impl.handler.EmptyCommandHandler;
 import ru.mephi.db.application.core.command.impl.handler.ExitCommandHandler;
 import ru.mephi.db.application.core.command.impl.handler.HelpCommandHandler;
+import ru.mephi.db.application.core.command.impl.handler.RecoveryCommandHandler;
 import ru.mephi.db.application.core.command.impl.handler.SQLQueryCommandHandler;
 import ru.mephi.db.di.qulifier.CommandPriority;
 import ru.mephi.db.domain.valueobject.Priority;
@@ -34,6 +35,10 @@ public abstract class CommandModule {
     @Binds
     @IntoSet
     abstract CommandHandler bindExitCommand(ExitCommandHandler cmd);
+
+    @Binds
+    @IntoSet
+    abstract CommandHandler bindRecoveryCommand(RecoveryCommandHandler cmd);
 
     @Binds
     @IntoSet

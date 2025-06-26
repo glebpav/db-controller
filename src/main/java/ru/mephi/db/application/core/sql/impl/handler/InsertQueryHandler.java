@@ -2,19 +2,20 @@ package ru.mephi.db.application.core.sql.impl.handler;
 
 import lombok.RequiredArgsConstructor;
 import ru.mephi.db.application.adapter.db.DataRepository;
-import ru.mephi.db.application.core.ConnectionConfig;
 import ru.mephi.db.application.core.sql.QueryHandler;
 import ru.mephi.db.domain.entity.Query;
 import ru.mephi.db.domain.entity.QueryResult;
 import ru.mephi.db.domain.valueobject.QueryType;
-import ru.mephi.db.infrastructure.db.DataRepositoryImpl;
+import ru.mephi.db.exception.LogUnableWriteTransactionException;
 import java.util.List;
 import java.util.Map;
+
+import ru.mephi.db.application.core.TransactionManager;
 
 @RequiredArgsConstructor
 public class InsertQueryHandler implements QueryHandler {
     private final DataRepository dataRepository;
-    private final ConnectionConfig connectionconfig ;
+    private final TransactionManager transactionManager;
 
     @Override
     public boolean canHandle(QueryType type) {
@@ -25,10 +26,16 @@ public class InsertQueryHandler implements QueryHandler {
     public QueryResult handle(Query query) {
         try {
             String tableName = query.getTable();
-            String dbFilePath = connectionconfig.getDbPath();
-            String tableFilePath = dbFilePath + "\\" + tableName + ".txt";
+            String tableFilePath = transactionManager.getActualTablePath(tableName).toString();
+
             List<Object> values = query.getValues();
             dataRepository.addRecord(tableFilePath, values);
+
+            try {
+                transactionManager.logInsertRecord(tableName, values);
+            } catch (LogUnableWriteTransactionException e) {
+                System.err.println("Warning: Failed to log insert operation: " + e.getMessage());
+            }
 
             return QueryResult.builder()
                     .success(true)

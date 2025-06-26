@@ -2,20 +2,17 @@ package ru.mephi.db.application.core.sql.impl.handler;
 
 import lombok.RequiredArgsConstructor;
 import ru.mephi.db.application.adapter.db.DataRepository;
-import ru.mephi.db.application.core.ConnectionConfig;
+import ru.mephi.db.application.core.TransactionManager;
 import ru.mephi.db.application.core.sql.QueryHandler;
 import ru.mephi.db.domain.entity.Query;
 import ru.mephi.db.domain.entity.QueryResult;
 import ru.mephi.db.domain.valueobject.QueryType;
-import ru.mephi.db.infrastructure.db.DataRepositoryImpl;
-
-import java.util.List;
-import java.util.Map;
+import ru.mephi.db.exception.LogUnableWriteTransactionException;
 
 @RequiredArgsConstructor
 public class DropTableHandler implements QueryHandler {
     private final DataRepository dataRepository;
-    private final ConnectionConfig connectionconfig ;
+    private final TransactionManager transactionManager;
 
     @Override
     public boolean canHandle(QueryType type) {
@@ -35,16 +32,20 @@ public class DropTableHandler implements QueryHandler {
                 );
             }
 
-            String dbFilePath = connectionconfig.getDbPath();
-            String tableFilePath = dbFilePath + "\\" + tableName + ".txt";
+            String tableFilePath = transactionManager.getActualTablePath(tableName).toString();
+    
+            dataRepository.deleteTableFile(tableFilePath);
 
-           dataRepository.deleteTableFile(tableFilePath);
+            try {
+                transactionManager.logDropTable(tableName);
+            } catch (LogUnableWriteTransactionException e) {
+                System.err.println("Warning: Failed to log drop table operation: " + e.getMessage());
+            }
 
             return new QueryResult(
                     true,
                     null,
-                    true ? "Table '" + tableName + "' dropped successfully"
-                            : "Failed to drop table '" + tableName + "'"
+                    "Table '" + tableName + "' dropped successfully"
             );
         } catch (Exception e) {
             return new QueryResult(

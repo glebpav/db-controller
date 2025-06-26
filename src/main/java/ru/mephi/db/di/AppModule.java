@@ -8,11 +8,16 @@ import ru.mephi.db.infrastructure.Constants;
 import javax.inject.Singleton;
 import java.io.FileNotFoundException;
 import java.io.PrintStream;
-import java.util.List;
+import java.nio.file.Path;
 import java.util.Scanner;
 
 @Module
 public class AppModule {
+    private final Path dbPath;
+
+    public AppModule(Path dbPath) {
+        this.dbPath = dbPath;
+    }
 
     @Provides
     @Singleton
@@ -23,7 +28,7 @@ public class AppModule {
     @Provides
     @Singleton
     public ConnectionConfig provideConnectionConfig() {
-        return new ConnectionConfig();
+        return new ConnectionConfig(this.dbPath);
     }
 
     public PrintStream providePrintStream() {
@@ -34,5 +39,4 @@ public class AppModule {
             throw new RuntimeException(e);
         }
     }
-
 }
