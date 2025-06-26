@@ -72,6 +72,7 @@ fun configureTestTask(task: Test) = task.apply {
     useJUnitPlatform()
 
     filter.includeTestsMatching("*Test")
+    filter.includeTestsMatching("unit.ru.mephi.db.infrastructure.db.*Test")
     testLogging.events("passed", "skipped", "failed")
 
     outputs.upToDateWhen { false }
