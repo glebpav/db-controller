@@ -20,4 +20,8 @@ public class TestOutputBoundaryImpl extends CliOutputBoundaryImpl {
         this.logLevel = level;
     }
 
+    public void clearOutput() {
+        this.outMessage = "";
+        this.logLevel = null;
+    }
 }

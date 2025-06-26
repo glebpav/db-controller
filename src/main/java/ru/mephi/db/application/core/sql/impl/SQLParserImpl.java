@@ -1,4 +1,4 @@
-package ru.mephi.db.application.core.sql.Impl;
+package ru.mephi.db.application.core.sql.impl;
 
 import lombok.AllArgsConstructor;
 import lombok.SneakyThrows;
@@ -9,7 +9,7 @@ import ru.mephi.db.domain.entity.Query;
 import ru.mephi.db.domain.valueobject.QueryType;
 import ru.mephi.db.infrastructure.db.DataRepositoryImpl;
 import ru.mephi.db.exception.SQLParseException;
-import ru.mephi.db.application.core.sql.Impl.listener.*;
+import ru.mephi.db.application.core.sql.impl.listener.*;
 import ru.mephi.sql.parser.*;
 
 import javax.inject.Inject;

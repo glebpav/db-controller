@@ -3,8 +3,8 @@ package ru.mephi.db;
 
 import ru.mephi.db.di.DaggerTestComponent;
 import ru.mephi.db.di.TestComponent;
-import org.junit.After;
-import org.junit.Before;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 
 import java.nio.channels.FileLock;
 import java.nio.file.Files;
@@ -16,7 +16,7 @@ public abstract class BaseIntegration {
     protected FileLock lock;
     protected Path tempDbPath;
 
-    @Before
+    @BeforeEach
     public void setUp() throws Exception {
         tempDbPath = Files.createTempDirectory("test_db");
         Files.createFile(tempDbPath.resolve("info"));
@@ -25,8 +25,11 @@ public abstract class BaseIntegration {
         lock = component.getInitializeDatabaseUseCase().execute(tempDbPath);
     }
 
-    @After
+    @AfterEach
     public void tearDown() throws Exception {
+        component.getTestModule().clearIO();
+        component.getTestModule().clearIO();
+
         if (lock != null) {
             component.getExitDatabaseUseCase().execute(lock);
         }

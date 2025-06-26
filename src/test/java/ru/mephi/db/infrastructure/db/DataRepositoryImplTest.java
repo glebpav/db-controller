@@ -1,4 +1,4 @@
-package unit.ru.mephi.db.infrastructure.db;
+package ru.mephi.db.infrastructure.db;
 
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
@@ -1146,7 +1146,7 @@ class DataRepositoryImplTest {
             initThreeColumnTable();
 
 
-            List<Integer> result = dataRepository.findRecordsByConstant(tablePath, 2, ">", 30);
+            List<Integer> result = dataRepository.findRecordsByConstant(tablePath, 2, ">", String.valueOf(30));
             assertEquals(List.of(3), result); // David(35)
         }
 
@@ -1156,15 +1156,6 @@ class DataRepositoryImplTest {
 
             List<Integer> result = dataRepository.findRecordsByConstant(tablePath, 1, "==", "Alice");
             assertEquals(List.of(0), result);
-        }
-
-        @Test
-        void testFindRecordsByConstant_TypeMismatch() throws IOException {
-            initThreeColumnTable();
-
-            assertThrows(IllegalArgumentException.class, () -> {
-                dataRepository.findRecordsByConstant(tablePath, 1, "==", 123); // string vs int
-            });
         }
 
         @Test
@@ -1344,7 +1335,7 @@ class DataRepositoryImplTest {
             dataRepository.addRecord(tablePath, List.of(20));
             dataRepository.addRecord(tablePath, List.of(30));
 
-            List<Integer> result = dataRepository.findRecordsByConstant(tablePath, 0, ">", 15);
+            List<Integer> result = dataRepository.findRecordsByConstant(tablePath, 0, ">", String.valueOf(15));
             assertEquals(List.of(1, 2), result); // 20 и 30 > 15
         }
 
@@ -1368,7 +1359,7 @@ class DataRepositoryImplTest {
             dataRepository.createTableFile(tablePath, "invalid_column_table", List.of("int"));
 
             assertThrows(IllegalArgumentException.class, () -> {
-                dataRepository.findRecordsByConstant(tablePath, 5, "==", 10);
+                dataRepository.findRecordsByConstant(tablePath, 5, "==", String.valueOf(10));
             });
         }
 
@@ -1378,27 +1369,10 @@ class DataRepositoryImplTest {
             dataRepository.createTableFile(tablePath, "unsupported_op_table", List.of("int"));
 
             Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-                dataRepository.findRecordsByConstant(tablePath, 0, "like", 10);
+                dataRepository.findRecordsByConstant(tablePath, 0, "like", String.valueOf(10));
             });
 
             assertTrue(exception.getMessage().contains("Unsupported operator"));
-        }
-
-        @Test
-        void testFindRecordsByConstant_ColumnInt_ConstantString_throwsException() throws IOException {
-            tablePath = testDir.resolve("t.txt").toString(); // Короткий путь
-            dataRepository.createTableFile(tablePath, "t", List.of("int"));
-
-            dataRepository.addRecord(tablePath, List.of(10));
-            dataRepository.addRecord(tablePath, List.of(20));
-            Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-                dataRepository.findRecordsByConstant(tablePath, 0, "==", "15");
-            });
-
-            String message = exception.getMessage();
-            assertNotNull(message, "Сообщение об ошибке не должно быть null");
-            assertTrue(message.contains("Column type is int but constant is String"),
-                    "Сообщение должно содержать 'Column type is int but constant is String'. Получено: " + message);
         }
 
         @Nested

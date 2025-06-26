@@ -1,4 +1,4 @@
-package ru.mephi.db.application.core.sql.Impl.listener;
+package ru.mephi.db.application.core.sql.impl.listener;
 
 import ru.mephi.sql.parser.PShowTablesBaseListener;
 

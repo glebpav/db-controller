@@ -1,37 +1,37 @@
-package ru.mephi.db.application.core.sql.Impl.handler;
+package ru.mephi.db.application.core.sql.impl.handler;
 
 import ru.mephi.db.application.core.sql.QueryHandler;
 import ru.mephi.db.domain.entity.Query;
 import ru.mephi.db.domain.entity.QueryResult;
 import ru.mephi.db.domain.valueobject.QueryType;
+
 import ru.mephi.db.application.adapter.db.DataRepository;
 import ru.mephi.db.application.core.ConnectionConfig;
 import ru.mephi.db.application.core.TransactionManager;
 
-public class CommitHandler implements QueryHandler {
+public class RollbackHandler implements QueryHandler {
     private final TransactionManager transactionManager;
 
-    public CommitHandler(TransactionManager transactionManager, DataRepository dataRepository, ConnectionConfig connectionConfig) {
+    public RollbackHandler(TransactionManager transactionManager, DataRepository dataRepository, ConnectionConfig connectionConfig) {
         this.transactionManager = transactionManager;
     }
 
     @Override
     public boolean canHandle(QueryType type) {
-        return type == QueryType.COMMIT;
+        return type == QueryType.ROLLBACK;
     }
 
     @Override
     public QueryResult handle(Query query) {
         try {
             if(!transactionManager.isInTransaction()) {
-                return new QueryResult(false, null, "No transaction to commit");
+                return new QueryResult(false, null, "No transaction to rollback");
             }
-
-            transactionManager.commit();
             
-            return new QueryResult(true, null, "Transaction committed successfully");
+            transactionManager.rollback();
+            return new QueryResult(true, null, "Transaction rolled back successfully");
         } catch (Exception e) {
-            return new QueryResult(false, null, "Failed to commit transaction: " + e.getMessage());
+            return new QueryResult(false, null, "Failed to rollback transaction: " + e.getMessage());
         }
     }
 }

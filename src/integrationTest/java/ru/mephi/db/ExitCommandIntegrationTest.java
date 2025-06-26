@@ -1,52 +1,45 @@
 package ru.mephi.db;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import ru.mephi.db.exception.DatabaseQuitException;
 
-
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class ExitCommandIntegrationTest extends BaseIntegration {
 
     @Test
-    public void testExitCommand() throws Exception {
+    public void testExitCommand() {
         // Arrange
         component.getTestModule().addToInputList("exit");
 
         // Act & Assert
-        try {
+        assertThrows(DatabaseQuitException.class, () -> {
             component.getHandleUserInputUseCase().execute();
-        } catch (Exception e) {
-            assertTrue(e instanceof DatabaseQuitException);
-            assertTrue(component.getTestModule().getOutputText().contains("Goodbye, dear!"));
-        }
+        });
+        assertTrue(component.getTestModule().getOutputText().contains("Goodbye, dear!"));
     }
 
     @Test
-    public void testExitWithAlias() throws Exception {
+    public void testExitWithAlias() {
         // Arrange
         component.getTestModule().addToInputList(":q");
 
         // Act & Assert
-        try {
+        assertThrows(DatabaseQuitException.class, () -> {
             component.getHandleUserInputUseCase().execute();
-        } catch (Exception e) {
-            assertTrue(e instanceof DatabaseQuitException);
-            assertTrue(component.getTestModule().getOutputText().contains("Goodbye, dear!"));
-        }
+        });
+        assertTrue(component.getTestModule().getOutputText().contains("Goodbye, dear!"));
     }
 
     @Test
-    public void testExitWithAnotherAlias() throws Exception {
+    public void testExitWithAnotherAlias() {
         // Arrange
         component.getTestModule().addToInputList("quit");
 
         // Act & Assert
-        try {
+        assertThrows(DatabaseQuitException.class, () -> {
             component.getHandleUserInputUseCase().execute();
-        } catch (Exception e) {
-            assertTrue(e instanceof DatabaseQuitException);
-            assertTrue(component.getTestModule().getOutputText().contains("Goodbye, dear!"));
-        }
+        });
+        assertTrue(component.getTestModule().getOutputText().contains("Goodbye, dear!"));
     }
 }

@@ -30,10 +30,7 @@ public class Main {
             lock = initializeDatabase(args);
 
             HandleUserInputUseCase handler = component.getHandleUserInputUseCase();
-            //noinspection InfiniteLoopStatement
-            while (true) {
-                handler.execute();
-            }
+            handler.execute();
         } catch (DatabaseQuitException e) {
             // TODO: remove usage of pure sout
             System.out.println("\n" + e.getMessage());

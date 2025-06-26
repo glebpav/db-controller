@@ -1,4 +1,4 @@
-package ru.mephi.db.application.core.sql.Impl.handler;
+package ru.mephi.db.application.core.sql.impl.handler;
 
 import ru.mephi.db.application.core.ConnectionConfig;
 import ru.mephi.db.application.core.sql.QueryHandler;
